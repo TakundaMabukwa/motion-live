@@ -130,31 +130,40 @@ interface TechnicianStockRow {
   display_name?: string | null;
 }
 
-interface GlobalStockSearchResult {
-  result_id: string;
-  source: "inventory" | "client_stock" | "technician_stock" | "job_history";
-  source_label: string;
-  reference: string;
-  code: string;
-  description: string;
-  quantity: number;
-  status: string;
-  bin: string;
-  owner: string;
-  serial_number?: string | null;
-  supplier?: string | null;
-  technician_email?: string | null;
-  cost_code?: string | null;
-  job_id?: string | null;
-  job_number?: string | null;
-  vehicle_registration?: string | null;
-  customer_name?: string | null;
-  job_type?: string | null;
-  trail_event?: string | null;
-  event_date?: string | null;
-  event_date_label?: string | null;
-  completion_date?: string | null;
-  decommission_date?: string | null;
+interface StockMovement {
+  id: number;
+  created_at: string;
+  serial_number: string;
+  category_code: string | null;
+  operation: string;
+  from_bucket: string | null;
+  to_bucket: string | null;
+  from_owner: string | null;
+  to_owner: string | null;
+  from_field: string | null;
+  to_field: string | null;
+  client_code: string | null;
+  cost_code: string | null;
+  job_card_id: string | null;
+  job_number: string | null;
+  quantity: number | null;
+  old_status: string | null;
+  new_status: string | null;
+  old_assigned_to: string | null;
+  new_assigned_to: string | null;
+  diff: Record<string, unknown> | null;
+}
+
+interface CurrentLocation {
+  bucket: string;
+  owner: string | null;
+  status: string | null;
+  job_number: string | null;
+  client_code: string | null;
+  cost_code: string | null;
+  found_in: string;
+  serial_number: string;
+  category_code: string | null;
 }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -403,19 +412,15 @@ export default function InventoryPage() {
   >([]);
   const [techStockLoading, setTechStockLoading] = useState(false);
   const [techStockSearchTerm, setTechStockSearchTerm] = useState("");
-  const [globalStockSearchTerm, setGlobalStockSearchTerm] = useState("");
-  const [globalStockSearchLoading, setGlobalStockSearchLoading] =
-    useState(false);
-  const [globalStockSearchResults, setGlobalStockSearchResults] = useState<
-    GlobalStockSearchResult[]
+  const [stockHistoryTerm, setStockHistoryTerm] = useState("");
+  const [stockHistoryLoading, setStockHistoryLoading] = useState(false);
+  const [stockHistoryMovements, setStockHistoryMovements] = useState<
+    StockMovement[]
   >([]);
-  const [globalStockSearchCounts, setGlobalStockSearchCounts] = useState({
-    inventory: 0,
-    client_stock: 0,
-    technician_stock: 0,
-    job_history: 0,
-    total: 0,
-  });
+  const [stockHistoryCurrent, setStockHistoryCurrent] = useState<
+    CurrentLocation[]
+  >([]);
+  const [stockHistorySerials, setStockHistorySerials] = useState<string[]>([]);
   const [showAssignTechStock, setShowAssignTechStock] = useState(false);
   const [selectedTechForAssign, setSelectedTechForAssign] =
     useState<TechnicianStockRow | null>(null);
@@ -557,22 +562,17 @@ export default function InventoryPage() {
   useEffect(() => {
     if (activeTab !== "inventory-search") return;
 
-    const query = globalStockSearchTerm.trim();
-    if (query.length < 2) {
-      setGlobalStockSearchResults([]);
-      setGlobalStockSearchCounts({
-        inventory: 0,
-        client_stock: 0,
-        technician_stock: 0,
-        job_history: 0,
-        total: 0,
-      });
+    const query = stockHistoryTerm.trim();
+    if (query.length < 1) {
+      setStockHistoryMovements([]);
+      setStockHistoryCurrent([]);
+      setStockHistorySerials([]);
       return;
     }
 
     const controller = new AbortController();
     const debounceTimer = setTimeout(() => {
-      fetchGlobalStockSearch(query, {
+      fetchStockHistory(query, {
         silent: true,
         signal: controller.signal,
       });
@@ -582,7 +582,7 @@ export default function InventoryPage() {
       clearTimeout(debounceTimer);
       controller.abort();
     };
-  }, [activeTab, globalStockSearchTerm]);
+  }, [activeTab, stockHistoryTerm]);
 
   // Debug: Log current activeTab
   console.log("Current activeTab:", activeTab);
@@ -696,23 +696,18 @@ export default function InventoryPage() {
     }
   };
 
-  const fetchGlobalStockSearch = async (
+  const fetchStockHistory = async (
     rawTerm?: string,
     options?: { silent?: boolean; signal?: AbortSignal },
   ) => {
     const searchValue = String(
-      rawTerm !== undefined ? rawTerm : globalStockSearchTerm,
+      rawTerm !== undefined ? rawTerm : stockHistoryTerm,
     ).trim();
 
-    if (searchValue.length < 2) {
-      setGlobalStockSearchResults([]);
-      setGlobalStockSearchCounts({
-        inventory: 0,
-        client_stock: 0,
-        technician_stock: 0,
-        job_history: 0,
-        total: 0,
-      });
+    if (searchValue.length < 1) {
+      setStockHistoryMovements([]);
+      setStockHistoryCurrent([]);
+      setStockHistorySerials([]);
       return;
     }
 
@@ -720,11 +715,11 @@ export default function InventoryPage() {
 
     try {
       if (!silent) {
-        setGlobalStockSearchLoading(true);
+        setStockHistoryLoading(true);
       }
 
       const response = await fetch(
-        `/api/inventory-search/global?q=${encodeURIComponent(searchValue)}&limit=220`,
+        `/api/stock-movements?q=${encodeURIComponent(searchValue)}`,
         {
           signal: options?.signal,
           cache: "no-store",
@@ -733,31 +728,30 @@ export default function InventoryPage() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
-        throw new Error(errorPayload?.error || "Failed to search stock bins");
+        throw new Error(errorPayload?.error || "Failed to search stock movements");
       }
 
       const payload = await response.json();
-      setGlobalStockSearchResults(
-        Array.isArray(payload?.results) ? payload.results : [],
+      setStockHistoryMovements(
+        Array.isArray(payload?.movements) ? payload.movements : [],
       );
-      setGlobalStockSearchCounts({
-        inventory: Number(payload?.counts?.inventory || 0),
-        client_stock: Number(payload?.counts?.client_stock || 0),
-        technician_stock: Number(payload?.counts?.technician_stock || 0),
-        job_history: Number(payload?.counts?.job_history || 0),
-        total: Number(payload?.counts?.total || 0),
-      });
+      setStockHistoryCurrent(
+        Array.isArray(payload?.current) ? payload.current : [],
+      );
+      setStockHistorySerials(
+        Array.isArray(payload?.unique_serials) ? payload.unique_serials : [],
+      );
     } catch (error) {
       if ((error as Error)?.name === "AbortError") {
         return;
       }
-      console.error("Error searching global stock bins:", error);
+      console.error("Error searching stock movements:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to search stock bins",
+        error instanceof Error ? error.message : "Failed to search stock movements",
       );
     } finally {
       if (!silent) {
-        setGlobalStockSearchLoading(false);
+        setStockHistoryLoading(false);
       }
     }
   };
@@ -1124,19 +1118,6 @@ export default function InventoryPage() {
   const handleAssignParts = (jobCard: JobCard) => {
     setSelectedJobCard(jobCard);
     setShowAssignParts(true);
-  };
-
-  const handleSearchResultViewParts = async (result: GlobalStockSearchResult) => {
-    if (!result.job_id) return;
-    try {
-      const response = await fetch(`/api/job-cards/${result.job_id}`, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Failed to fetch job card');
-      const data = await response.json();
-      const jobCard: JobCard = data.jobCard || data;
-      handleAssignParts(jobCard);
-    } catch (error) {
-      console.error('Error fetching job card for parts view:', error);
-    }
   };
 
   const handleOpenJobDetails = (jobCard: JobCard) => {
@@ -4119,25 +4100,25 @@ export default function InventoryPage() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 className="text-2xl font-semibold text-gray-900">
-            Inventory Search
+            Stock History
           </h3>
           <p className="text-sm text-gray-600">
-            Global lookup across stock bins and full job-card trail by reg,
-            serial, IP, account, or job number.
+            Search by serial, IP, or job number to see current location and full
+            movement trail.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline">
-            {globalStockSearchCounts.total} matches
+            {stockHistoryMovements.length} movement{stockHistoryMovements.length !== 1 ? "s" : ""}
           </Badge>
           <Button
-            onClick={() => fetchGlobalStockSearch()}
+            onClick={() => fetchStockHistory()}
             variant="outline"
             size="sm"
-            disabled={globalStockSearchLoading}
+            disabled={stockHistoryLoading}
           >
             <RefreshCw
-              className={`mr-2 h-4 w-4 ${globalStockSearchLoading ? "animate-spin" : ""}`}
+              className={`mr-2 h-4 w-4 ${stockHistoryLoading ? "animate-spin" : ""}`}
             />
             Refresh
           </Button>
@@ -4147,198 +4128,285 @@ export default function InventoryPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
         <Input
-          placeholder="Search reg, serial/IP, job number, code, supplier, bin, account, or technician..."
-          value={globalStockSearchTerm}
-          onChange={(event) => setGlobalStockSearchTerm(event.target.value)}
+          placeholder="Search serial, IP address, or job number..."
+          value={stockHistoryTerm}
+          onChange={(event) => setStockHistoryTerm(event.target.value)}
           className="bg-white pl-10"
         />
       </div>
 
-      {globalStockSearchTerm.trim().length < 2 ? (
+      {stockHistoryTerm.trim().length < 1 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white py-10 text-center text-sm text-gray-600">
-          Type at least 2 characters to search stock bins and job history.
+          Type a serial number, IP address, or job number to search stock
+          history.
         </div>
-      ) : globalStockSearchLoading ? (
+      ) : stockHistoryLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
           <span className="ml-2 text-sm text-gray-600">
-            Searching stock bins and history...
+            Searching stock movements...
           </span>
         </div>
-      ) : globalStockSearchResults.length === 0 ? (
+      ) : stockHistoryMovements.length === 0 && stockHistoryCurrent.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white py-10 text-center text-sm text-gray-600">
-          No stock or job-history matches found.
+          No stock found for &ldquo;{stockHistoryTerm}&rdquo;.
         </div>
       ) : (
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <Card className="border-blue-100">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium tracking-wide text-blue-700 uppercase">
-                  Soltrack Inventory
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-blue-900">
-                  {globalStockSearchCounts.inventory}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-indigo-100">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium tracking-wide text-indigo-700 uppercase">
-                  Client Stock
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-indigo-900">
-                  {globalStockSearchCounts.client_stock}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-purple-100">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium tracking-wide text-purple-700 uppercase">
-                  Technician Stock
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-purple-900">
-                  {globalStockSearchCounts.technician_stock}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-amber-100">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium tracking-wide text-amber-700 uppercase">
-                  Job History
-                </p>
-                <p className="mt-1 text-2xl font-semibold text-amber-900">
-                  {globalStockSearchCounts.job_history}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    Source
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    Reference
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    Serial / IP
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    Item
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    Qty
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    Bin / Owner
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {globalStockSearchResults.map((item) => (
-                  <tr
-                    key={item.result_id}
-                    className={`border-b border-gray-100 align-top hover:bg-gray-50 ${
-                      item.source === "job_history" ? "cursor-pointer" : ""
-                    }`}
-                    onClick={() => {
-                      if (item.source === "job_history") {
-                        handleSearchResultViewParts(item);
-                      }
-                    }}
-                  >
-                    <td className="px-4 py-3">
-                      <Badge
-                        variant="outline"
-                        className={
-                          item.source === "client_stock"
-                            ? "border-indigo-200 text-indigo-700"
-                            : item.source === "technician_stock"
-                              ? "border-purple-200 text-purple-700"
-                              : item.source === "job_history"
-                                ? "border-amber-200 text-amber-700"
-                              : "border-blue-200 text-blue-700"
-                        }
+        <div className="space-y-6">
+          {/* Current Location Summary Table */}
+          {stockHistoryCurrent.length > 0 && (
+            <div>
+              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-700">
+                Current Location{stockHistoryCurrent.length !== 1 ? "s" : ""}
+              </h4>
+              <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                <table className="w-full border-collapse text-sm excel-table">
+                  <thead className="bg-gray-100 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-40">
+                        Serial / IP
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-36">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-32">
+                        Bucket
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-48">
+                        Owner / Vehicle
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-36">
+                        Job #
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-32">
+                        Client / Account
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-28">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b border-gray-200 w-36">
+                        Source Table
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockHistoryCurrent.map((loc, idx) => (
+                      <tr
+                        key={`${loc.serial_number}-${loc.found_in}-${idx}`}
+                        className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-blue-50`}
                       >
-                        {item.source_label}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      <div>{item.reference}</div>
-                      {item.source === "job_history" && item.event_date_label ? (
-                        <div className="text-xs font-normal text-gray-500">
-                          {item.event_date_label}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-700">
-                      <div>{item.serial_number || "-"}</div>
-                      {item.source === "job_history" && item.vehicle_registration ? (
-                        <div className="text-gray-500">
-                          Reg: {item.vehicle_registration}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      <div className="font-medium text-gray-900">{item.code}</div>
-                      <div className="text-xs text-gray-600">
-                        {item.description || "No description"}
-                      </div>
-                      {item.source === "job_history" && item.trail_event ? (
-                        <div className="text-xs text-amber-700">
-                          Trail: {item.trail_event}
-                        </div>
-                      ) : null}
-                      {item.supplier ? (
-                        <div className="text-xs text-gray-500">
-                          Supplier: {item.supplier}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <Badge variant="outline" className="text-xs">
-                        {item.quantity}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      <div>{item.bin}</div>
-                      <div className="text-xs text-gray-500">{item.owner}</div>
-                      {item.source === "job_history" && item.cost_code ? (
-                        <div className="text-xs text-gray-500">
-                          Account: {item.cost_code}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      <div>{item.status || "N/A"}</div>
-                      {item.source === "job_history" && item.completion_date ? (
-                        <div className="text-xs text-gray-500">
-                          Completed: {new Date(item.completion_date).toLocaleDateString()}
-                        </div>
-                      ) : null}
-                      {item.source === "job_history" && item.decommission_date ? (
-                        <div className="text-xs text-gray-500">
-                          De-installed: {new Date(item.decommission_date).toLocaleDateString()}
-                        </div>
-                      ) : null}
-                      {item.source === "job_history" ? (
-                        <div className="mt-1 text-xs font-medium text-blue-600">
-                          Click to view parts
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        <td className="px-4 py-3 font-mono text-sm font-medium text-gray-900 border-r border-gray-100">
+                          {loc.serial_number}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 border-r border-gray-100">
+                          {loc.category_code || "-"}
+                        </td>
+                        <td className="px-4 py-3 border-r border-gray-100">
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                              loc.bucket === "tech"
+                                ? "bg-purple-100 text-purple-800"
+                                : loc.bucket === "client"
+                                  ? "bg-indigo-100 text-indigo-800"
+                                  : loc.bucket === "job"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : loc.bucket === "vehicle"
+                                      ? "bg-teal-100 text-teal-800"
+                                      : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {loc.bucket === "tech"
+                              ? "Technician"
+                              : loc.bucket === "client"
+                                ? "Client"
+                                : loc.bucket === "job"
+                                  ? "On Job"
+                                  : loc.bucket === "vehicle"
+                                    ? "Vehicle"
+                                    : "Soltrack"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 border-r border-gray-100">
+                          {loc.owner || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 border-r border-gray-100 font-mono">
+                          {loc.job_number || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 border-r border-gray-100">
+                          {loc.client_code || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 border-r border-gray-100">
+                          {loc.status || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500 font-mono">
+                          {loc.found_in}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Movement Timeline - Excel Style Table */}
+          {stockHistoryMovements.length > 0 && (
+            <div>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-3">
+                <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-700">
+                  Movement Timeline
+                </h4>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>Total rows: {stockHistoryMovements.length}</span>
+                  <span className="text-gray-300">|</span>
+                  <span>Date range: {stockHistoryMovements.length > 0 ? new Date(stockHistoryMovements[0].created_at).toLocaleDateString() : "-"} - {stockHistoryMovements.length > 0 ? new Date(stockHistoryMovements[stockHistoryMovements.length - 1].created_at).toLocaleDateString() : "-"}</span>
+                </div>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm max-h-[600px]">
+                <table className="w-full border-collapse text-sm excel-table">
+                  <thead className="bg-gray-100 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-36">
+                        Date / Time
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-48">
+                        Serial / IP
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-44">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-40">
+                        Operation
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-48">
+                        From Bucket
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-48">
+                        To Bucket
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-40">
+                        From Field
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-40">
+                        To Field
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-48">
+                        Owner / Tech
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-36">
+                        Job #
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-32">
+                        Client
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-32">
+                        Cost Code
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockHistoryMovements.map((m, idx) => (
+                      <tr
+                        key={m.id}
+                        className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-blue-50`}
+                      >
+                        <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100 font-mono whitespace-nowrap">
+                          {new Date(m.created_at).toLocaleDateString()}{" "}
+                          {new Date(m.created_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="px-4 py-2 text-sm font-medium text-gray-900 border-r border-gray-100 font-mono">
+                          {m.serial_number}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700 border-r border-gray-100">
+                          {m.category_code || "-"}
+                        </td>
+                        <td className="px-4 py-2 border-r border-gray-100">
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                              m.operation.startsWith("SEED")
+                                ? "bg-gray-100 text-gray-700"
+                                : m.operation.includes("REMOVED")
+                                  ? "bg-red-50 text-red-800"
+                                  : m.operation.includes("ADDED") || m.operation === "INSERT"
+                                    ? "bg-green-50 text-green-800"
+                                    : "bg-blue-50 text-blue-800"
+                            }`}
+                          >
+                            {m.operation}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 border-r border-gray-100">
+                          {m.from_bucket ? (
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                m.from_bucket === "tech"
+                                  ? "bg-purple-50 text-purple-800"
+                                  : m.from_bucket === "client"
+                                    ? "bg-indigo-50 text-indigo-800"
+                                    : m.from_bucket === "job"
+                                      ? "bg-amber-50 text-amber-800"
+                                      : "bg-blue-50 text-blue-800"
+                              }`}
+                            >
+                              {m.from_bucket}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                          {m.from_field && (
+                            <span className="ml-1 text-xs text-gray-500">({m.from_field})</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r border-gray-100">
+                          {m.to_bucket ? (
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                m.to_bucket === "tech"
+                                  ? "bg-purple-50 text-purple-800"
+                                  : m.to_bucket === "client"
+                                    ? "bg-indigo-50 text-indigo-800"
+                                    : m.to_bucket === "job"
+                                      ? "bg-amber-50 text-amber-800"
+                                      : "bg-blue-50 text-blue-800"
+                              }`}
+                            >
+                              {m.to_bucket}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                          {m.to_field && (
+                            <span className="ml-1 text-xs text-gray-500">({m.to_field})</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100">
+                          {m.from_field || "-"}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100">
+                          {m.to_field || "-"}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100 font-mono">
+                          {m.from_owner || m.to_owner || "-"}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100 font-mono">
+                          {m.job_number || "-"}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100">
+                          {m.client_code || "-"}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-700">
+                          {m.cost_code || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
