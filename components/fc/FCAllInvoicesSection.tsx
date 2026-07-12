@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Eye, FileDown, FileText, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
@@ -92,8 +93,10 @@ const buildCreditNoteDescription = (invoice: InvoiceRow) => {
   return parts.join(" | ") || `Credit Note ${invoice.invoice_number || "N/A"}`;
 };
 
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
 const buildCreditNoteLineItems = (invoice: InvoiceRow) => {
-  const amountExVat = Number(invoice.total_amount || 0);
+  const amountExVat = round2(Number(invoice.total_amount || 0));
   return [
     {
       previous_reg: "-",
@@ -106,9 +109,9 @@ const buildCreditNoteLineItems = (invoice: InvoiceRow) => {
       unit_price_without_vat: amountExVat,
       amountExcludingVat: amountExVat,
       vat_percent: "15.00%",
-      vat_amount: amountExVat * 0.15,
-      total_incl_vat: amountExVat * 1.15,
-      total_including_vat: amountExVat * 1.15,
+      vat_amount: round2(amountExVat * 0.15),
+      total_incl_vat: round2(amountExVat * 1.15),
+      total_including_vat: round2(amountExVat * 1.15),
       reg: "-",
       fleetNumber: "-",
       company: invoice.company_name || invoice.account_number || "",
@@ -167,6 +170,21 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
 
   const isMaster = userRole === "master";
 
+  // Track credited invoice numbers for re-invoice button
+  const [creditedInvoiceNumbers, setCreditedInvoiceNumbers] = useState<Set<string>>(new Set());
+
+  // Re-invoice preview state
+  const [showReInvoicePreview, setShowReInvoicePreview] = useState(false);
+  const [reInvoicePreviewData, setReInvoicePreviewData] = useState<{
+    invoiceData: any;
+    costCenterInfo: any;
+    clientName: string;
+    billingMonth: string;
+  } | null>(null);
+  const [reInvoiceLoading, setReInvoiceLoading] = useState(false);
+  const [reInvoiceGenerating, setReInvoiceGenerating] = useState(false);
+  const [reInvoicePreviewInvoiceId, setReInvoicePreviewInvoiceId] = useState<string | null>(null);
+
   const fetchInvoices = async (search = "", month = selectedMonth) => {
     try {
       const isRefresh = !loading;
@@ -207,6 +225,15 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
       if (creditNotesRes && creditNotesRes.ok) {
         const cnResult = await creditNotesRes.json();
         const rawCN = Array.isArray(cnResult?.credit_notes) ? cnResult.credit_notes : [];
+        
+        // Track which invoices have been credited for re-invoice button
+        const creditedSet = new Set<string>();
+        rawCN.forEach((cn: Record<string, unknown>) => {
+          const ref = String(cn?.reference || cn?.invoice_credited || "").trim();
+          if (ref) creditedSet.add(ref);
+        });
+        setCreditedInvoiceNumbers(creditedSet);
+
         const creditNoteRows: InvoiceRow[] = rawCN.map((cn: Record<string, unknown>) => ({
           id: `cn-${String(cn?.id || "")}`,
           account_number: String(cn?.account_number || "").trim(),
@@ -478,14 +505,10 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
 
     const normalizeLine = (item: Record<string, unknown>) => {
       const units = Math.max(1, toNumber(item.units ?? item.quantity) || 1);
-      const explicitUnitPrice = toNumber(item.unit_price_without_vat ?? item.unit_price_ex_vat ?? item.unit_price);
-      const explicitLineExVat = toNumber(item.total_excl_vat ?? item.subtotal ?? item.amountExcludingVat);
-      const exVatPerUnit = explicitUnitPrice > 0 ? explicitUnitPrice : explicitLineExVat > 0 ? explicitLineExVat / units : 0;
-      const exVatLineTotal = explicitLineExVat > 0 ? explicitLineExVat : exVatPerUnit * units;
-      const explicitVatAmount = toNumber(item.vat_amount ?? item.vatAmount ?? item.total_vat);
-      const explicitTotalIncl = toNumber(item.total_including_vat ?? item.total_incl_vat ?? item.total_incl ?? item.totalIncl ?? item.totalRentalSub);
-      const vatLineTotal = explicitVatAmount > 0 ? explicitVatAmount : explicitTotalIncl > 0 && exVatLineTotal > 0 ? Math.max(0, explicitTotalIncl - exVatLineTotal) : exVatLineTotal * 0.15;
-      const totalInclLine = exVatLineTotal + vatLineTotal;
+      const exVatPerUnit = toNumber(item.unit_price_without_vat ?? item.unit_price_ex_vat ?? item.unit_price);
+      const exVatLineTotal = toNumber(item.total_excl_vat ?? item.subtotal ?? item.amountExcludingVat);
+      const vatLineTotal = toNumber(item.vat_amount ?? item.vatAmount ?? item.total_vat);
+      const totalInclLine = toNumber(item.total_including_vat ?? item.total_incl_vat ?? item.total_incl ?? item.totalIncl ?? item.totalRentalSub);
       return {
         previousReg: String(item.previous_reg || item.reg || "-"),
         newReg: String(item.new_reg || item.previous_reg || item.reg || "-"),
@@ -686,6 +709,138 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     }
   };
 
+  const openReInvoicePreview = async (invoice: InvoiceRow) => {
+    const accountNumber = String(invoice?.account_number || "").trim();
+    const billingMonth = String(invoice?.billing_month || selectedMonth).trim();
+    
+    if (!accountNumber) {
+      toast.error("No account number found for this invoice.");
+      return;
+    }
+    if (!billingMonth) {
+      toast.error("No billing month found for this invoice.");
+      return;
+    }
+
+    setReInvoiceLoading(true);
+    setReInvoicePreviewInvoiceId(invoice.id || invoice.invoice_number || null);
+    try {
+      // Use the vehicles invoice API with current live data
+      const response = await fetch(
+        `/api/vehicles/invoice?accountNumber=${encodeURIComponent(accountNumber)}&billingMonth=${encodeURIComponent(billingMonth)}`,
+        { cache: "no-store" }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to fetch live invoice data");
+      }
+
+      const result = await response.json();
+      
+      if (!result?.success || !result?.invoiceData) {
+        throw new Error("No invoice data returned");
+      }
+
+      const liveInvoiceData = result.invoiceData;
+      const companyName = liveInvoiceData.company_name || invoice.company_name || "Unknown Client";
+
+      // Build preview data similar to vehicles validation
+      const previewData = {
+        accountNumber,
+        accountName: companyName,
+        company: companyName,
+        billingMonth: billingMonth,
+        costCenterInfo: {
+          cost_code: accountNumber,
+          billing_month: billingMonth,
+          trading_name: companyName,
+        },
+        invoiceData: {
+          ...liveInvoiceData,
+          invoice_number: null, // Show as PENDING for preview
+          notes: liveInvoiceData?.notes || null,
+          invoice_locked: false,
+          billing_month: billingMonth,
+          company_name: companyName,
+          invoiceItems: liveInvoiceData.invoice_items || [],
+          invoice_items: liveInvoiceData.invoice_items || [],
+        },
+      };
+
+      setReInvoicePreviewData(previewData);
+      setShowReInvoicePreview(true);
+    } catch (error) {
+      console.error("Error fetching re-invoice preview:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to load re-invoice preview");
+    } finally {
+      setReInvoiceLoading(false);
+    }
+  };
+
+  const handleGenerateReInvoice = async () => {
+    if (!reInvoicePreviewData) return;
+
+    const { accountNumber, accountName, billingMonth, invoiceData } = reInvoicePreviewData;
+    const lineItems = invoiceData?.invoice_items || invoiceData?.invoiceItems || [];
+
+    setReInvoiceGenerating(true);
+    try {
+      const response = await fetch("/api/invoices/account/re-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountNumber,
+          billingMonth,
+          companyName: accountName,
+          companyRegistrationNumber: invoiceData?.company_registration_number || null,
+          clientAddress: invoiceData?.client_address || null,
+          customerVatNumber: invoiceData?.customer_vat_number || null,
+          subtotal: invoiceData?.subtotal ?? 0,
+          vatAmount: invoiceData?.vat_amount ?? 0,
+          totalAmount: invoiceData?.total_amount ?? 0,
+          discountAmount: 0,
+          lineItems,
+          notes: invoiceData?.notes || `Re-invoice for credited invoice`,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to generate invoice");
+      }
+
+      const invoiceNumber = result?.invoice?.invoice_number || "new invoice";
+      const invoiceDate = result?.invoice?.invoice_date || new Date().toISOString();
+
+      toast.success(`Invoice ${invoiceNumber} generated`);
+
+      setReInvoicePreviewData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          invoiceData: {
+            ...prev.invoiceData,
+            invoice_number: invoiceNumber,
+            invoice_date: invoiceDate,
+            total_amount: result?.invoice?.total_amount ?? prev.invoiceData?.total_amount,
+            subtotal: result?.invoice?.subtotal ?? prev.invoiceData?.subtotal,
+            vat_amount: result?.invoice?.vat_amount ?? prev.invoiceData?.vat_amount,
+            notes: result?.invoice?.notes ?? prev.invoiceData?.notes,
+          },
+        };
+      });
+
+      await fetchInvoices(searchTerm, selectedMonth);
+    } catch (error) {
+      console.error("Error generating re-invoice:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate invoice");
+    } finally {
+      setReInvoiceGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -797,9 +952,9 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
         <span className="text-slate-500">
           <strong className="text-slate-700">{creditNoteRows.length}</strong> credit notes
         </span>
-        <span className="text-slate-500">
-          Credit Total: <strong className="text-red-600">{formatCurrency(totalCreditNoteValue)}</strong>
-        </span>
+<span className="text-slate-500">
+            Credit Total: <strong className="text-red-600">{formatCurrency(totalCreditNoteValue * 1.15)}</strong>
+          </span>
       </div>
 
       <div className="overflow-hidden rounded-lg border bg-white">
@@ -854,8 +1009,16 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                       {invoice.company_name || "N/A"}
                     </TableCell>
                     <TableCell className="py-1.5">{formatDate(invoice.billing_month)}</TableCell>
-                    <TableCell className="py-1.5 text-right">{formatCurrency(invoice.total_amount)}</TableCell>
-                    <TableCell className="py-1.5 text-right">{formatCurrency(invoice.balance_due)}</TableCell>
+                    <TableCell className="py-1.5 text-right">
+                      {invoice.source_type === "credit_note"
+                        ? formatCurrency(Number(invoice.total_amount || 0) * 1.15)
+                        : formatCurrency(invoice.total_amount)}
+                    </TableCell>
+                    <TableCell className="py-1.5 text-right">
+                      {invoice.source_type === "credit_note"
+                        ? formatCurrency(Number(invoice.balance_due || 0) * 1.15)
+                        : formatCurrency(invoice.balance_due)}
+                    </TableCell>
                     <TableCell className="py-1.5">
                       {invoice.source_type === "account_invoice" ? (
                         <Badge className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0">Annuity</Badge>
@@ -891,21 +1054,59 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                         ) : invoice.source_type === "credit_note" && !invoice.approved ? (
                           <span className="text-[10px] font-medium text-amber-600">Waiting for approval</span>
                         ) : (
-                          <>
-                            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
-                              <Eye className="mr-1 w-3 h-3" />
-                              Pdf
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => downloadInvoiceExcel(invoice)}>
-                              <FileDown className="mr-1 w-3 h-3" />
-                              Excel
-                            </Button>
-                          </>
-                        )}
-                        {invoice.source_type !== "credit_note" && (
+<>
+                             <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
+                               <Eye className="mr-1 w-3 h-3" />
+                               Pdf
+                             </Button>
+                             {invoice.source_type === "credit_note" ? (
+                               <Tooltip>
+                                 <TooltipTrigger asChild>
+                                   <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 opacity-50 cursor-not-allowed" disabled>
+                                     <FileDown className="mr-1 w-3 h-3" />
+                                     Excel
+                                   </Button>
+                                 </TooltipTrigger>
+                                 <TooltipContent side="top">Excel option not available for credit notes</TooltipContent>
+                               </Tooltip>
+                             ) : (
+                               <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => downloadInvoiceExcel(invoice)}>
+                                 <FileDown className="mr-1 w-3 h-3" />
+                                 Excel
+                               </Button>
+                             )}
+                           </>
+                         )}
+                        {invoice.source_type !== "credit_note" && creditedInvoiceNumbers.has(invoice.invoice_number || "") ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 opacity-50 cursor-not-allowed" disabled>
+                                <FileText className="mr-1 w-3 h-3" />
+                                Credit Note
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Invoice already has a credit note</TooltipContent>
+                          </Tooltip>
+                        ) : invoice.source_type !== "credit_note" ? (
                           <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => openCreditNoteModal(invoice)}>
                             <FileText className="mr-1 w-3 h-3" />
                             Credit Note
+                          </Button>
+                        ) : null}
+                        {invoice.source_type !== "credit_note" && creditedInvoiceNumbers.has(invoice.invoice_number || "") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] px-2 border-teal-300 text-teal-700 hover:bg-teal-50"
+                            onClick={() => openReInvoicePreview(invoice)}
+                            disabled={reInvoiceLoading}
+                          >
+                            {reInvoiceLoading && reInvoicePreviewInvoiceId === (invoice.id || invoice.invoice_number) ? (
+                              <Loader2 className="mr-1 w-3 h-3 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-1 w-3 h-3" />
+                            )}
+                            {reInvoiceLoading && reInvoicePreviewInvoiceId === (invoice.id || invoice.invoice_number) ? "Loading invoice..." : "Re-invoice"}
                           </Button>
                         )}
                       </div>
@@ -1007,14 +1208,14 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                     <div className="text-slate-500 text-xs">Client</div>
                     <div className="font-medium text-slate-900">{creditNoteInvoice.company_name || "N/A"}</div>
                   </div>
-                  <div>
-                    <div className="text-slate-500 text-xs">Invoice Amount</div>
-                    <div className="font-medium text-slate-900">{formatCurrency(creditNoteInvoice.total_amount)}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 text-xs">Balance Due</div>
-                    <div className="font-medium text-slate-900">{formatCurrency(creditNoteInvoice.balance_due)}</div>
-                  </div>
+<div>
+                      <div className="text-slate-500 text-xs">Invoice Amount</div>
+                      <div className="font-medium text-slate-900">{formatCurrency(Number(creditNoteInvoice.total_amount || 0) * 1.15)}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-500 text-xs">Balance Due</div>
+                      <div className="font-medium text-slate-900">{formatCurrency(Number(creditNoteInvoice.balance_due || 0) * 1.15)}</div>
+                    </div>
                   <div>
                     <div className="text-slate-500 text-xs">Billing Month</div>
                     <div className="font-medium text-slate-900">{creditNoteInvoice.billing_month || "N/A"}</div>
@@ -1216,6 +1417,81 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           </div>
         </div>
       )}
+
+      <Dialog open={showReInvoicePreview} onOpenChange={setShowReInvoicePreview}>
+        <DialogContent className="max-w-7xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {reInvoicePreviewData?.invoiceData?.invoice_number
+                ? `Invoice ${reInvoicePreviewData.invoiceData.invoice_number}`
+                : "Re-Invoice Preview"
+              }
+            </DialogTitle>
+            {reInvoicePreviewData && (
+              <p className="text-xs text-slate-500">
+                {reInvoicePreviewData.accountName} — {reInvoicePreviewData.billingMonth}
+              </p>
+            )}
+          </DialogHeader>
+          {reInvoiceLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+              <span className="ml-2 text-sm text-slate-500">Loading live invoice data...</span>
+            </div>
+          ) : reInvoicePreviewData ? (
+            <InvoiceReportComponent
+              viewOnly
+              documentTitle="Tax Invoice (Re-Invoice)"
+              documentNumberLabel="TAX INVOICE"
+              clientLegalName={reInvoicePreviewData.accountName}
+              costCenter={{
+                accountNumber: reInvoicePreviewData.accountNumber,
+                billingMonth: reInvoicePreviewData.billingMonth,
+              }}
+              invoiceData={{
+                ...reInvoicePreviewData.invoiceData,
+                invoice_number: reInvoicePreviewData.invoiceData?.invoice_number || null,
+                notes: reInvoicePreviewData.invoiceData?.notes || null,
+                invoice_locked: false,
+                billing_month: reInvoicePreviewData.billingMonth,
+                company_name: reInvoicePreviewData.accountName,
+                invoice_items: reInvoicePreviewData.invoiceData?.invoice_items || [],
+                invoiceItems: reInvoicePreviewData.invoiceData?.invoice_items || [],
+                line_items: reInvoicePreviewData.invoiceData?.invoice_items || [],
+              }}
+            />
+          ) : (
+            <div className="text-center text-slate-400 py-12">No preview data available</div>
+          )}
+          {reInvoicePreviewData && !reInvoiceLoading && (
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowReInvoicePreview(false);
+                  setReInvoicePreviewData(null);
+                }}
+                disabled={reInvoiceGenerating}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleGenerateReInvoice}
+                disabled={reInvoiceGenerating}
+                className="bg-teal-600 hover:bg-teal-700 text-white"
+              >
+                {reInvoiceGenerating ? (
+                  <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Generating...</>
+                ) : (
+                  "Generate Invoice"
+                )}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -4285,10 +4285,10 @@ export default function InventoryPage() {
                         To Bucket
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-40">
-                        From Field
+                        Parts Assigned
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-40">
-                        To Field
+                        Parts Used
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 border-b-2 border-gray-200 border-r border-gray-200 w-48">
                         Owner / Tech
@@ -4383,10 +4383,10 @@ export default function InventoryPage() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100">
-                          {m.from_field || "-"}
+                          {m.from_field === "parts_required" ? "Parts Assigned" : m.from_field === "equipment_used" ? "Parts Used" : m.from_field || "-"}
                         </td>
                         <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100">
-                          {m.to_field || "-"}
+                          {m.to_field === "equipment_used" ? "Parts Used" : m.to_field === "parts_required" ? "Parts Assigned" : m.to_field || "-"}
                         </td>
                         <td className="px-4 py-2 text-xs text-gray-700 border-r border-gray-100 font-mono">
                           {m.from_owner || m.to_owner || "-"}

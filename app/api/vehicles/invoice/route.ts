@@ -176,6 +176,8 @@ const hasLegacyStoredLineItems = (items: any[]) =>
     );
   });
 
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
 const pushInvoiceItem = (
   invoiceItems: any[],
   vehicle: Record<string, any>,
@@ -187,8 +189,9 @@ const pushInvoiceItem = (
   amount: number,
   category?: string,
 ) => {
-  const vatAmount = amount * 0.15;
-  const totalInclVat = amount + vatAmount;
+  const exVat = round2(amount);
+  const vatAmount = round2(exVat * 0.15);
+  const totalInclVat = round2(exVat + vatAmount);
 
   invoiceItems.push({
     reg: vehicle.reg || null,
@@ -200,10 +203,10 @@ const pushInvoiceItem = (
     category: category || null,
     account_number: vehicle.account_number || vehicle.new_account_number || '',
     units: 1,
-    unit_price: amount.toFixed(2),
-    unit_price_without_vat: amount.toFixed(2),
-    amountExcludingVat: amount.toFixed(2),
-    total_excl_vat: amount.toFixed(2),
+    unit_price: exVat.toFixed(2),
+    unit_price_without_vat: exVat.toFixed(2),
+    amountExcludingVat: exVat.toFixed(2),
+    total_excl_vat: exVat.toFixed(2),
     vat_amount: vatAmount.toFixed(2),
     vatAmount: vatAmount.toFixed(2),
     total_incl_vat: totalInclVat.toFixed(2),
@@ -216,8 +219,8 @@ const pushInvoiceItem = (
   return totalInclVat;
 };
 
-const calculateInvoiceFinancials = (items: any[]) =>
-  items.reduce(
+const calculateInvoiceFinancials = (items: any[]) => {
+  const raw = items.reduce(
     (acc, item) => {
       const units = Math.max(
         1,
@@ -270,8 +273,8 @@ const calculateInvoiceFinancials = (items: any[]) =>
           ? explicitVat
           : explicitIncl > 0 && exVatLineTotal > 0
             ? Math.max(0, explicitIncl - exVatLineTotal)
-            : exVatLineTotal * 0.15;
-      const totalInclLine = exVatLineTotal + vatLineTotal;
+            : round2(exVatLineTotal * 0.15);
+      const totalInclLine = round2(exVatLineTotal + vatLineTotal);
 
       acc.subtotal += exVatLineTotal;
       acc.vatAmount += vatLineTotal;
@@ -280,6 +283,12 @@ const calculateInvoiceFinancials = (items: any[]) =>
     },
     { subtotal: 0, vatAmount: 0, totalAmount: 0 },
   );
+  return {
+    subtotal: round2(raw.subtotal),
+    vatAmount: round2(raw.vatAmount),
+    totalAmount: round2(raw.totalAmount),
+  };
+};
 
 const resolveInvoiceItemCode = (
   labels: string[],
@@ -602,7 +611,7 @@ const buildEpsInvoiceData = (
 
   const groupSummaries = EPS_GROUPS.map((group) => {
     const items = itemsByCode.get(group.code) || [];
-    const subtotal = items.reduce(
+    const subtotal = round2(items.reduce(
       (sum, item) =>
         sum +
         (parseFloat(
@@ -615,12 +624,12 @@ const buildEpsInvoiceData = (
           ),
         ) || 0),
       0,
-    );
-    const vatAmount = items.reduce(
+    ));
+    const vatAmount = round2(items.reduce(
       (sum, item) => sum + (parseFloat(String(item.vat_amount ?? item.vatAmount ?? 0)) || 0),
       0,
-    );
-    const totalAmount = items.reduce(
+    ));
+    const totalAmount = round2(items.reduce(
       (sum, item) =>
         sum +
         (parseFloat(
@@ -632,7 +641,7 @@ const buildEpsInvoiceData = (
           ),
         ) || 0),
       0,
-    );
+    ));
 
     const mappedCostCode = EPS_GROUP_COST_CENTER_CODES[group.bucket] || group.code;
     const mappedCostCenter = epsCostCentersByCode.get(mappedCostCode) || null;

@@ -101,6 +101,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Amount must be greater than 0." }, { status: 400 });
     }
 
+    // Server-side duplicate check: prevent crediting the same invoice twice
+    if (invoiceCredited) {
+      const { data: existingCN, error: existingCNError } = await serviceSupabase
+        .from("credit_notes")
+        .select("id, credit_note_number")
+        .eq("invoice_credited", invoiceCredited)
+        .limit(1);
+
+      if (existingCNError) {
+        console.error("Error checking existing credit notes:", existingCNError);
+      }
+
+      if (existingCN && existingCN.length > 0) {
+        return NextResponse.json(
+          { error: `Invoice ${invoiceCredited} already has a credit note (${existingCN[0].credit_note_number}).` },
+          { status: 409 },
+        );
+      }
+    }
+
     const billingMonthDate = billingMonth.length === 7 ? `${billingMonth}-01` : billingMonth;
 
     let resolvedClientName = clientName;
