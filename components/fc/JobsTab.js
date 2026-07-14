@@ -422,6 +422,15 @@ export default function JobsTab() {
     return true;
   }, []);
 
+  const filteredJobs = useMemo(() => {
+    const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
+    if (jobTab === "job-pool") return visible;
+    if (jobTab === "completed") return visible.filter((j) => Boolean(j.ready_for_invoicing));
+    if (jobTab === "not-completed") return visible.filter((j) => !j.ready_for_invoicing && String(j.role || "").toLowerCase().trim() === "fc");
+    if (jobTab === "completed-old") return visible.filter((j) => isCompletedNotInvoiced(j));
+    return visible.filter((j) => getJobStatus(j) !== "completed");
+  }, [jobs, jobTab, getJobStatus, isCompletedNotInvoiced]);
+
   const filteredJobsSearch = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return filteredJobs;
