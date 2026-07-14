@@ -698,13 +698,14 @@ export default function Jobs() {
               <th className="p-4 font-medium text-slate-700 text-left">Description</th>
               <th className="p-4 font-medium text-slate-700 text-left">Technician</th>
               <th className="p-4 font-medium text-slate-700 text-left">Created By</th>
+              <th className="p-4 font-medium text-slate-700 text-left max-w-[160px]">Notes</th>
               <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-slate-500 text-center">
+                <td colSpan={10} className="py-12 text-slate-500 text-center">
                   No results
                 </td>
               </tr>
@@ -719,6 +720,11 @@ export default function Jobs() {
                   <td className="p-4 text-slate-600">{job.description}</td>
                   <td className="p-4 text-slate-600">{job.technician}</td>
                   <td className="p-4 text-slate-600">{job.createdBy}</td>
+                  <td className="px-3 py-2 text-slate-700 max-w-[160px]">
+                    <div className="truncate text-[11px] text-slate-600" title={(() => { const h = (job as any).move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                      {(() => { const h = (job as any).move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                    </div>
+                  </td>
                   <td className="p-4">
                     <div className="flex items-center space-x-2">
                       <Button size="sm" variant="outline">

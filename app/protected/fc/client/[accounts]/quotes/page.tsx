@@ -8,6 +8,7 @@ import { Loader2, FileText, Clock, DollarSign, Plus, RefreshCw } from "lucide-re
 import ClientJobCards from "@/components/ui-personal/client-job-cards";
 import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
 import CreateBOIModal from "@/components/fc/CreateBOIModal";
+import InvoiceJobModal from "@/components/fc/InvoiceJobModal";
 import { toast } from "sonner";
 
 export default function FCQuotesPage() {
@@ -20,6 +21,9 @@ export default function FCQuotesPage() {
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const [invoiceModalJob, setInvoiceModalJob] = useState<any>(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
   const handleDataLoaded = useCallback((quotes: any[]) => {
     setStats({
       total: quotes.length,
@@ -29,11 +33,43 @@ export default function FCQuotesPage() {
     });
   }, []);
 
+  const handleQuoteCreated = useCallback(async (quoteData?: any) => {
+    setShowQuoteForm(false);
+    setRefreshKey((p) => p + 1);
+
+    const jobType = String(quoteData?.jobType || "").toLowerCase();
+    const isItemBilling = jobType === "item_billing" || jobType === "itembilling" || jobType === "onceoff" || jobType === "onceoffitem";
+
+    if (isItemBilling && quoteData?.id) {
+      const loadingToast = toast.loading("Approving and preparing invoice...");
+      try {
+        const approveRes = await fetch(`/api/client-quotes/${quoteData.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "approve" }),
+        });
+        const approveResult = await approveRes.json();
+        if (!approveRes.ok || !approveResult?.data?.jobCard) {
+          throw new Error(approveResult?.error || "Failed to approve quote");
+        }
+
+        toast.dismiss(loadingToast);
+        toast.success("Opening invoice", { description: quoteData.job_number || "" });
+
+        setInvoiceModalJob(approveResult.data.jobCard);
+        setShowInvoiceModal(true);
+      } catch (err: any) {
+        toast.dismiss(loadingToast);
+        toast.error("Failed to auto-approve", { description: err?.message || "Please approve manually." });
+      }
+    }
+  }, []);
+
   if (!selectedCostCenter) {
     return <div className="flex items-center justify-center h-32"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>;
   }
 
-  const fmtVal = (v) => v >= 1000000 ? `R${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `R${(v / 1000).toFixed(1)}K` : `R${v.toFixed(0)}`;
+  const fmtVal = (v: number) => v >= 1000000 ? `R${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `R${(v / 1000).toFixed(1)}K` : `R${v.toFixed(0)}`;
 
   return (
     <div className="flex flex-col h-full">
@@ -109,7 +145,7 @@ export default function FCQuotesPage() {
           companyName={isAll ? "All Cost Centers" : (selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company)}
           strictAccount={!isAll && !!accountNumber}
           onDataLoaded={handleDataLoaded}
-          onQuoteCreated={() => { setShowQuoteForm(false); setRefreshKey((p) => p + 1); }}
+          onQuoteCreated={handleQuoteCreated}
         />
       </div>
 
@@ -124,10 +160,24 @@ export default function FCQuotesPage() {
               customer={selectedCostCenter}
               vehicles={[]}
               accountInfo={isAll ? { ...selectedCostCenter, cost_code: firstAccount, cost_center_code: firstAccount } : selectedCostCenter}
-              onQuoteCreated={() => { setShowQuoteForm(false); setRefreshKey((p) => p + 1); }}
+              onQuoteCreated={handleQuoteCreated}
             />
           </div>
         </div>
+      )}
+
+      {invoiceModalJob && (
+        <InvoiceJobModal
+          job={invoiceModalJob}
+          open={showInvoiceModal}
+          onOpenChange={setShowInvoiceModal}
+          editedProducts={undefined}
+          onComplete={() => {
+            setShowInvoiceModal(false);
+            setInvoiceModalJob(null);
+            setRefreshKey((p) => p + 1);
+          }}
+        />
       )}
     </div>
   );

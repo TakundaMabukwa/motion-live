@@ -528,6 +528,7 @@ export async function PUT(
         data: {
           jobCardId: jobCard.id,
           jobNumber: jobCard.job_number,
+          jobCard,
           originalQuoteId: id,
           calibrationVehicleCount,
         }

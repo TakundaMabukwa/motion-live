@@ -199,6 +199,22 @@ export async function GET(request: NextRequest) {
 
     const openJobs = (data || []).filter((job) => !isClosedJob(job));
 
+    // Exclude jobs that already have an invoice
+    const jobNumbers = openJobs.map((j) => String(j.job_number || "").trim()).filter(Boolean);
+    const invoicedJobNumbers = new Set<string>();
+    if (jobNumbers.length > 0) {
+      const { data: invoiceRows } = await supabase
+        .from("invoices")
+        .select("job_number")
+        .in("job_number", jobNumbers);
+      (invoiceRows || []).forEach((row: { job_number?: string | null }) => {
+        if (row.job_number) invoicedJobNumbers.add(row.job_number);
+      });
+    }
+    const nonInvoicedJobs = openJobs.filter(
+      (job) => !invoicedJobNumbers.has(String(job.job_number || "").trim()),
+    );
+
     const counts = TRACKED_ROLE_KEYS.reduce<Record<string, number>>(
       (accumulator, roleKey) => {
         accumulator[roleKey] = 0;
@@ -214,7 +230,7 @@ export async function GET(request: NextRequest) {
       {},
     );
 
-    const jobs = openJobs.map((job) => {
+    const jobs = nonInvoicedJobs.map((job) => {
       const normalizedRole = deriveBoardRole(job);
       const hasTechnician =
         String(job.technician_name || "").trim().length > 0 ||

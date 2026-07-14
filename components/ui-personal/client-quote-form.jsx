@@ -1946,7 +1946,7 @@ export default function ClientQuoteForm({
         
         // Form submitted successfully - call callback after reset
         if (onQuoteCreated) {
-          onQuoteCreated();
+          onQuoteCreated({ ...result.data, jobType: formData.jobType, quotationProducts });
         }
       }
     } catch (error) {

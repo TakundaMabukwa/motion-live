@@ -70,7 +70,8 @@ export async function GET(request: NextRequest) {
          escalation_source_role,
          escalated_at,
          decommission_date,
-         annuity_end_date
+         annuity_end_date,
+         move_history
        `);
 
     // Apply company filter (using customer_name as company)

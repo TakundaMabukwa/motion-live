@@ -75,6 +75,7 @@ const COMPLETED_JOB_FIELDS = [
   "customer_satisfaction_rating",
   "created_by",
   "billing_statuses",
+  "move_history",
 ].join(", ");
 
 export async function GET() {

@@ -176,7 +176,8 @@ export async function GET(request: NextRequest) {
         completion_date,
         new_account_number,
         order_number,
-        invoiced_by
+        invoiced_by,
+        move_history
       `,
       )
       .eq("role", "accounts")

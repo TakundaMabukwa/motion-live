@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
     const includeCount = String(searchParams.get('include_count') || 'true').toLowerCase() !== 'false';
     const selectFields =
       view === 'fc-list'
-        ? 'id, job_number, order_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, updated_at, account_id, new_account_number, cost_center_code, cost_center_name, escalation_role, escalation_source_role, escalated_at, parts_required, job_description'
+        ? 'id, job_number, order_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, updated_at, account_id, new_account_number, cost_center_code, cost_center_name, escalation_role, escalation_source_role, escalated_at, parts_required, job_description, move_history'
         : '*';
 
     const runListQuery = async (fields: string) => {

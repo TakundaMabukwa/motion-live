@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import InvoiceJobModal from "./InvoiceJobModal";
-import AccountsJobPoolSection from "@/components/accounts/AccountsJobPoolSection";
 
 const JOB_TABS = [
   { id: "job-pool", label: "Job Pool" },
@@ -218,6 +217,11 @@ export default function JobsTab() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState(null);
   const [movingJobId, setMovingJobId] = useState(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [pendingMoveJob, setPendingMoveJob] = useState(null);
+  const [pendingMoveDestination, setPendingMoveDestination] = useState("");
+  const [pendingMovePayload, setPendingMovePayload] = useState(null);
+  const [moveNote, setMoveNote] = useState("");
   const [moveHistoryJob, setMoveHistoryJob] = useState(null);
   const [progressJob, setProgressJob] = useState(null);
 
@@ -345,7 +349,7 @@ export default function JobsTab() {
     await fetchJobs(debouncedSearch, showAllJobs);
   };
 
-  const handleMoveJob = useCallback(async (job, destination) => {
+  const handleMoveJob = useCallback(async (job, destination, note, extraPayload) => {
     if (!job?.id || !destination) return;
     setMovingJobId(job.id);
     const destLabel = destination === "inv" ? "Stock Control" : destination === "fc" ? "FC" : "Helpdesk";
@@ -356,8 +360,8 @@ export default function JobsTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           destination,
-          ...(destination === "fc" ? { preserveCompleted: true } : {}),
-          ...(destination === "inv" ? { inventoryPlacement: "assign-parts" } : {}),
+          note,
+          ...extraPayload,
         }),
       });
       if (!response.ok) {
@@ -387,6 +391,7 @@ export default function JobsTab() {
 
   const filteredJobs = useMemo(() => {
     const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
+    if (jobTab === "job-pool") return visible;
     if (jobTab === "completed") return visible.filter((j) => getJobStatus(j) === "completed");
     if (jobTab === "not-completed") return visible.filter((j) => getJobStatus(j) !== "completed" && String(j.role || "").toLowerCase().trim() === "fc");
     return visible.filter((j) => getJobStatus(j) !== "completed");
@@ -598,8 +603,7 @@ export default function JobsTab() {
         ))}
       </div>
 
-      {/* Metrics cards - hidden on job-pool tab */}
-      {jobTab !== "job-pool" && (
+      {/* Metrics cards */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {[
           { label: "Total", value: metrics.total, icon: Briefcase, bg: "bg-blue-100 text-blue-700" },
@@ -622,10 +626,9 @@ export default function JobsTab() {
           );
         })}
       </div>
-      )}
 
       {/* Search + Refresh */}
-      {jobTab === "job-pool" ? null : jobTab === "invoiced" ? (
+      {jobTab === "invoiced" ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-slate-900">
@@ -700,7 +703,165 @@ export default function JobsTab() {
 
       {/* Job Pool tab */}
       {jobTab === "job-pool" && (
-        <AccountsJobPoolSection />
+        <>
+      {/* Mobile card layout */}
+      <div className="divide-y divide-slate-100 lg:hidden">
+        {loading ? (
+          <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
+        ) : filteredJobsSearch.length === 0 ? (
+          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No open jobs found.</p></div>
+        ) : filteredJobsSearch.map((job) => {
+          const sb = ((st) => {
+            if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+            if (st === "in progress" || st === "processing") return { label: "In Progress", cls: "border-blue-200 bg-blue-50 text-blue-700" };
+            if (st === "pending" || st === "new") return { label: "Pending", cls: "border-amber-200 bg-amber-50 text-amber-700" };
+            return { label: st || "N/A", cls: "border-slate-200 bg-slate-50 text-slate-700" };
+          })(getJobStatus(job));
+
+          return (
+            <div key={job.id} className="space-y-3 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-base text-slate-900">{job.job_number || "N/A"}</p>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">{job.new_account_number || "No account"}</p>
+                  <p className="mt-2 font-medium text-slate-900">{job.customer_name || "N/A"}</p>
+                </div>
+                <Badge variant="outline" className={`shrink-0 border px-2 py-0.5 text-xs font-semibold ${sb.cls}`}>{sb.label}</Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Vehicle</p>
+                  <p className="mt-1 font-medium text-slate-900">{job.vehicle_registration || "N/A"}</p>
+                  <p className="truncate text-xs text-slate-500">{job.vehicle_make || ""} {job.vehicle_model || ""}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Date</p>
+                  <p className="mt-1 font-medium text-slate-900">
+                    {new Date(job.completion_date || job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
+                  </p>
+                  <p className="text-xs text-slate-500">{getJobTypeDisplay(job.job_type)}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleViewJob(job)} className="h-8 text-xs flex-1">
+                  <Eye className="mr-1 w-3.5 h-3.5" /> View
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => handleEditAndFinalize(job)} className="h-8 text-xs flex-1">
+                  <FileEdit className="mr-1 w-3.5 h-3.5" /> Edit &amp; Finalize
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => handleCancelJob(job)} className="h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
+                  <Ban className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden lg:block">
+        <CardHeader className="border-b border-slate-100 pb-3">
+          <CardTitle className="text-base">Job Pool ({filteredJobsSearch.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
+          ) : filteredJobsSearch.length === 0 ? (
+          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No open jobs found.</p></div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[960px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80">
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500"><span className="inline-flex items-center gap-1">Job # <ArrowUpDown className="h-3 w-3" /></span></th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Customer</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Vehicle</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Account</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Type</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Date</th>
+                    <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredJobsSearch.map((job) => {
+                    const sb = ((st) => {
+                      if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+                      if (st === "in progress" || st === "processing") return { label: "In Progress", cls: "border-blue-200 bg-blue-50 text-blue-700" };
+                      if (st === "pending" || st === "new") return { label: "Pending", cls: "border-amber-200 bg-amber-50 text-amber-700" };
+                      return { label: st || "N/A", cls: "border-slate-200 bg-slate-50 text-slate-700" };
+                    })(getJobStatus(job));
+
+                    return (
+                      <tr key={job.id} className="border-b border-slate-100 align-top hover:bg-slate-50/60">
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-slate-900">{job.job_number || "N/A"}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="max-w-[180px] truncate font-medium text-slate-900">{job.customer_name || "N/A"}</div>
+                          <div className="max-w-[180px] truncate text-[11px] text-slate-500">{job.customer_email || job.customer_phone || ""}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="font-medium text-slate-900">{job.vehicle_registration || "N/A"}</div>
+                          <div className="truncate text-[11px] text-slate-500">{job.vehicle_make || ""} {job.vehicle_model || ""}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <span className="font-mono text-[11px]">{job.new_account_number || "N/A"}</span>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 text-[11px]">{getJobTypeDisplay(job.job_type)}</td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold w-fit ${sb.cls}`}>{sb.label}</Badge>
+                            {job.escalation_role && String(job.escalation_role).toLowerCase() === "fc" && (
+                              <Badge variant="outline" className="h-5 rounded-sm border border-orange-200 bg-orange-50 px-1.5 text-[10px] font-semibold text-orange-700 w-fit">Escalated</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 text-[11px]">
+                          {new Date(job.completion_date || job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleViewJob(job)} className="hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-7 px-2 text-[11px]">
+                              <Eye className="mr-1 w-3 h-3" /> View
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleEditAndFinalize(job)} className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 h-7 px-2 text-[11px]">
+                              <FileEdit className="mr-1 w-3 h-3" /> Edit &amp; Finalize
+                            </Button>
+                            <Select disabled={movingJobId === job.id} onValueChange={(value) => {
+                              const extraPayload = value === "fc" ? { preserveCompleted: true } : value === "inv" ? { inventoryPlacement: "assign-parts" } : undefined;
+                              setPendingMoveJob(job);
+                              setPendingMoveDestination(value);
+                              setPendingMovePayload(extraPayload || null);
+                              setMoveNote("");
+                              setShowMoveDialog(true);
+                            }}>
+                              <SelectTrigger className="h-7 w-[100px] text-[11px]">
+                                <SelectValue placeholder={movingJobId === job.id ? "Moving..." : "Move to"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="fc">FC</SelectItem>
+                                <SelectItem value="inv">Stock Control</SelectItem>
+                                <SelectItem value="admin">Helpdesk</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button variant="ghost" size="sm" onClick={() => handleCancelJob(job)} className="hover:bg-red-50 text-red-500 hover:text-red-600 h-7 px-2 text-[11px]">
+                              <Ban className="w-3 h-3" /> Cancel
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+        </>
       )}
 
       {/* Invoiced tab: invoice table */}
@@ -842,6 +1003,7 @@ export default function JobsTab() {
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Account</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Type</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 max-w-[160px]">Notes</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Date</th>
                     <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">Actions</th>
                   </tr>
@@ -881,6 +1043,11 @@ export default function JobsTab() {
                             <StageBadges job={job} onClick={setProgressJob} />
                           </div>
                         </td>
+                        <td className="px-3 py-2 text-slate-700 max-w-[160px]">
+                          <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                            {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-slate-700 text-[11px]">
                           {new Date(job.completion_date || job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
                         </td>
@@ -895,7 +1062,14 @@ export default function JobsTab() {
                             <Button variant="ghost" size="sm" onClick={() => setMoveHistoryJob(job)} className="hover:bg-slate-50 text-slate-500 hover:text-slate-700 h-7 px-2 text-[11px]">
                               <History className="mr-1 w-3 h-3" /> History
                             </Button>
-                            <Select disabled={movingJobId === job.id} onValueChange={(value) => handleMoveJob(job, value)}>
+                            <Select disabled={movingJobId === job.id} onValueChange={(value) => {
+                              const extraPayload = value === "fc" ? { preserveCompleted: true } : value === "inv" ? { inventoryPlacement: "assign-parts" } : undefined;
+                              setPendingMoveJob(job);
+                              setPendingMoveDestination(value);
+                              setPendingMovePayload(extraPayload || null);
+                              setMoveNote("");
+                              setShowMoveDialog(true);
+                            }}>
                               <SelectTrigger className="h-7 w-[100px] text-[11px]">
                                 <SelectValue placeholder={movingJobId === job.id ? "Moving..." : "Move to"} />
                               </SelectTrigger>
@@ -1221,6 +1395,55 @@ export default function JobsTab() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Move Job to {pendingMoveDestination === "inv" ? "Stock Control" : pendingMoveDestination === "fc" ? "FC" : "Helpdesk"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Note *</Label>
+              <Textarea
+                value={moveNote}
+                onChange={(e) => setMoveNote(e.target.value)}
+                placeholder="Why are you moving this job?"
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowMoveDialog(false);
+                  setPendingMoveJob(null);
+                  setPendingMoveDestination("");
+                  setPendingMovePayload(null);
+                  setMoveNote("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!moveNote.trim()}
+                onClick={() => {
+                  if (pendingMoveJob && moveNote.trim()) {
+                    handleMoveJob(pendingMoveJob, pendingMoveDestination, moveNote.trim(), pendingMovePayload || undefined);
+                    setShowMoveDialog(false);
+                    setPendingMoveJob(null);
+                    setPendingMoveDestination("");
+                    setPendingMovePayload(null);
+                    setMoveNote("");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Move
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

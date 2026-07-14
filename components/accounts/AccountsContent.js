@@ -2614,7 +2614,7 @@ export default function AccountsContent({ activeSection }) {
   const renderCompletedJobsSkeletonRows = () =>
     Array.from({ length: 6 }).map((_, index) => (
       <TableRow key={`completed-job-skeleton-${index}`} className="h-12">
-        {Array.from({ length: 8 }).map((__, cellIndex) => (
+        {Array.from({ length: 9 }).map((__, cellIndex) => (
           <TableCell key={`completed-job-skeleton-cell-${index}-${cellIndex}`} className="py-3 px-3">
             <div className="h-4 bg-gray-100 rounded animate-pulse" />
           </TableCell>
@@ -3984,6 +3984,9 @@ export default function AccountsContent({ activeSection }) {
                       <TableHead className="h-10 px-3 text-xs text-right">
                         Total
                       </TableHead>
+                      <TableHead className="h-10 px-3 text-xs max-w-[160px]">
+                        Notes
+                      </TableHead>
                       <TableHead className="h-10 px-3 text-xs text-right">
                         Actions
                       </TableHead>
@@ -4023,6 +4026,9 @@ export default function AccountsContent({ activeSection }) {
                     </TableHead>
                     <TableHead className="h-10 px-3 text-xs text-right">
                       Total
+                    </TableHead>
+                    <TableHead className="h-10 px-3 text-xs max-w-[160px]">
+                      Notes
                     </TableHead>
                     <TableHead className="h-10 px-3 text-xs text-right">
                       Actions
@@ -4087,6 +4093,11 @@ export default function AccountsContent({ activeSection }) {
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right font-semibold text-gray-900">
                         {formatCurrency(getInvoiceTotals(job).total)}
+                      </TableCell>
+                      <TableCell className="py-2 px-3 max-w-[160px]">
+                        <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                          {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                        </div>
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right">
                         <div className="flex justify-end gap-2 flex-wrap">

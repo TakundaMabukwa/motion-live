@@ -95,6 +95,7 @@ interface JobCard {
   vin_numer?: string;
   odormeter?: string;
   role?: string;
+  move_history?: Array<{ note?: string; [key: string]: unknown }>;
   move_to?: string;
   escalation_role?: string;
   escalation_source_role?: string;
@@ -1988,6 +1989,9 @@ export default function AdminDashboard() {
                     <th className="py-3 px-4 text-left font-medium text-gray-500">
                       Technician
                     </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500 max-w-[160px]">
+                      Notes
+                    </th>
                     <th className="py-3 px-4 text-right font-medium text-gray-500">
                       Actions
                     </th>
@@ -1996,7 +2000,7 @@ export default function AdminDashboard() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={12} className="p-4 text-center">
+                      <td colSpan={13} className="p-4 text-center">
                         <div className="flex justify-center items-center py-8">
                           <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
                           <span className="ml-2">Loading assigned jobs...</span>
@@ -2005,7 +2009,7 @@ export default function AdminDashboard() {
                     </tr>
                   ) : filteredAssignedTechnicianJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="p-4 text-center">
+                      <td colSpan={13} className="p-4 text-center">
                         <div className="py-8 flex flex-col items-center">
                           <Users className="mx-auto mb-4 w-12 h-12 text-gray-400" />
                           <h3 className="mb-2 font-medium text-gray-900 text-lg">
@@ -2110,6 +2114,11 @@ export default function AdminDashboard() {
                             <Badge className="bg-green-100 text-green-800">
                               {job.technician_name}
                             </Badge>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700 max-w-[160px]">
+                            <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                              {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                            </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="flex justify-end gap-2">

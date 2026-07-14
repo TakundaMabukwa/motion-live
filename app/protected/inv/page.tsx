@@ -2906,6 +2906,9 @@ export default function InventoryPage() {
                   <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider max-w-[160px]">
+                    Notes
+                  </th>
                   <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Actions
                   </th>
@@ -2992,6 +2995,11 @@ export default function InventoryPage() {
                         >
                           {job.job_status || job.status || "NOT STARTED"}
                         </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700 max-w-[160px]">
+                        <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                          {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                        </div>
                       </td>
                       <td
                         className="py-4 px-6 align-middle"
@@ -3116,6 +3124,9 @@ export default function InventoryPage() {
                   <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Parts
                   </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider max-w-[160px]">
+                    Notes
+                  </th>
                   <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Actions
                   </th>
@@ -3191,24 +3202,29 @@ export default function InventoryPage() {
                           </div>
                         )}
                       </div>
-                    </td>
-                    <td
-                      className="py-4 px-6 align-middle"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleShowQRCode(job);
-                          }}
-                          className="text-blue-600 hover:text-blue-700"
-                        >
-                          <QrCode className="mr-1 w-3 h-3" />
-                          View QR
-                        </Button>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700 max-w-[160px]">
+                        <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                          {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                        </div>
+                      </td>
+                      <td
+                        className="py-4 px-6 align-middle"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleShowQRCode(job);
+                            }}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <QrCode className="mr-1 w-3 h-3" />
+                            View QR
+                          </Button>
 
                         <Button
                           size="sm"

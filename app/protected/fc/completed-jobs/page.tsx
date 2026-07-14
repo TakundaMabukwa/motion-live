@@ -1086,6 +1086,9 @@ function FCCompletedJobsPageContent() {
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Completion
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 max-w-[160px]">
+                      Notes
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Actions
                     </th>
@@ -1237,6 +1240,12 @@ function FCCompletedJobsPageContent() {
                               <strong>Repair:</strong>{" "}
                               {job.repair ? "Yes" : "No"}
                             </p>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 align-top text-gray-900 max-w-[160px]">
+                          <div className="truncate text-xs text-gray-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                            {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
                           </div>
                         </td>
 

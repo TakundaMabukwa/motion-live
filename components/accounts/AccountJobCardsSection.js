@@ -46,7 +46,7 @@ const monthValueToBillingMonth = (value) => {
 
 const renderSkeletonRow = (key) => (
   <tr key={key} className="border-b border-slate-200 even:bg-slate-50/60">
-    {Array.from({ length: 8 }).map((_, index) => (
+    {Array.from({ length: 9 }).map((_, index) => (
       <td key={`${key}-${index}`} className="border-r border-slate-200 px-3 py-3 last:border-r-0">
         <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
       </td>
@@ -269,6 +269,7 @@ export default function AccountJobCardsSection({ accountNumber }) {
                 <th className="w-[120px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600">Value</th>
                 <th className="w-[180px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600">Invoice</th>
                 <th className="w-[120px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600">Invoice Date</th>
+                <th className="w-[160px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600">Notes</th>
                 <th className="w-[120px] px-3 py-3 font-semibold text-slate-600">Actions</th>
               </tr>
             </thead>
@@ -313,6 +314,11 @@ export default function AccountJobCardsSection({ accountNumber }) {
                       <td className="border-r border-slate-200 px-3 py-3 text-slate-700">
                         {job.invoice?.invoice_date ? formatDate(job.invoice.invoice_date) : "-"}
                       </td>
+                      <td className="border-r border-slate-200 px-3 py-2 max-w-[160px]">
+                        <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                          {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                        </div>
+                      </td>
                       <td className="px-3 py-3">
                         {job.invoice ? (
                           <Button
@@ -348,7 +354,7 @@ export default function AccountJobCardsSection({ accountNumber }) {
 
               {!loading && hasLoadedOnce && filteredJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-500">
                     No {stateFilter} jobs found for this client in the selected month.
                   </td>
                 </tr>

@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
         special_instructions, access_requirements, site_contact_person,
         site_contact_phone, repair, role, move_to,
         escalation_role, escalation_source_role, escalated_at,
-        decommission_date, annuity_end_date
+        decommission_date, annuity_end_date,
+        move_history
       `)
       .or('status.eq.completed,job_status.eq.completed')
       .or('role.eq.admin,move_to.eq.admin')

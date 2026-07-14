@@ -593,13 +593,14 @@ export default function Dashboard() {
               <th className="p-4 font-medium text-slate-700 text-left">Parts Required</th>
               <th className="p-4 font-medium text-slate-700 text-left">Schedule</th>
               <th className="p-4 font-medium text-slate-700 text-left">Status</th>
+              <th className="p-4 font-medium text-slate-700 text-left max-w-[160px]">Notes</th>
               <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-slate-500 text-center">
+                <td colSpan={10} className="py-12 text-slate-500 text-center">
                   No jobs found
                 </td>
               </tr>
@@ -636,6 +637,11 @@ export default function Dashboard() {
                     <Badge variant="outline" className={getStatusColor(job.job_status)}>
                       {job.job_status === 'created' ? 'New' : job.job_status}
                     </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-slate-700 max-w-[160px]">
+                    <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                      {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
+                    </div>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center space-x-2">

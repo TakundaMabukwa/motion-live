@@ -217,7 +217,7 @@ export async function GET(
     const view = request.nextUrl.searchParams.get('view') || '';
 
     const fcEditSelect =
-      'id, job_number, order_number, account_id, new_account_number, cost_center_code, cost_center_name, customer_name, customer_email, customer_phone, customer_address, contact_person, job_type, job_sub_type, job_description, purchase_type, decommission_date, annuity_end_date, move_to_role, move_to, vehicle_registration, vehicle_make, vehicle_model, vehicle_year, vin_numer, odormeter, quote_notes, quote_email_subject, quote_email_body, quote_email_footer, quotation_products, deinstall_vehicles, completion_notes, fc_note_acknowledged, status, job_status, role, escalation_role, escalation_source_role, created_at, updated_at';
+      'id, job_number, order_number, account_id, new_account_number, cost_center_code, cost_center_name, customer_name, customer_email, customer_phone, customer_address, contact_person, job_type, job_sub_type, job_description, purchase_type, decommission_date, annuity_end_date, move_to_role, move_to, vehicle_registration, vehicle_make, vehicle_model, vehicle_year, vin_numer, odormeter, quote_notes, quote_email_subject, quote_email_body, quote_email_footer, quotation_products, deinstall_vehicles, completion_notes, fc_note_acknowledged, status, job_status, role, escalation_role, escalation_source_role, created_at, updated_at, move_history';
 
     const requestedSelect = view === 'fc-edit' ? fcEditSelect : '*';
 

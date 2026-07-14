@@ -185,7 +185,8 @@ export async function GET(request: NextRequest) {
         completion_date,
         end_time,
         created_at,
-        updated_at
+        updated_at,
+        move_history
       `,
       )
       .eq("new_account_number", accountNumber)
