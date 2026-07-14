@@ -44,6 +44,7 @@ export async function POST(
       bypassEscalation,
       escalationOnly,
       inventoryPlacement,
+      ready_for_invoicing,
     } = await request.json();
 
     const {
@@ -224,6 +225,9 @@ export async function POST(
             ...escalationPayload,
             move_history: updatedHistory,
             ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
+            ...(targetRole === "fc" && typeof ready_for_invoicing === "boolean"
+              ? { ready_for_invoicing }
+              : {}),
           }
         : {
             role: targetRole,
@@ -236,6 +240,9 @@ export async function POST(
             ...escalationPayload,
             move_history: updatedHistory,
             ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
+            ...(targetRole === "fc" && typeof ready_for_invoicing === "boolean"
+              ? { ready_for_invoicing }
+              : {}),
           };
 
       const patchUrl = `${new URL(request.url).origin}/api/job-cards/${id}`;

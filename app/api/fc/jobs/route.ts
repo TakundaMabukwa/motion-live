@@ -80,6 +80,7 @@ interface JobRecord {
   created_by: string | null;
   billing_statuses: unknown;
   fc_note_acknowledged: unknown;
+  ready_for_invoicing: boolean | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -154,10 +155,24 @@ export async function GET(request: NextRequest) {
 
     const jobs = allRows;
 
+    // Fetch job_card_ids that already have an invoice in the invoices table
+    const invoicedJobIds = new Set<string>();
+    const { data: invoiceRows } = await serviceSupabase
+      .from("invoices")
+      .select("job_card_id");
+    if (Array.isArray(invoiceRows)) {
+      for (const row of invoiceRows) {
+        if (row.job_card_id) invoicedJobIds.add(String(row.job_card_id));
+      }
+    }
+
     const normalizeToken = (value: unknown) =>
       String(value || "").trim().toLowerCase();
 
     const allJobs = jobs.filter((job) => {
+      // Exclude jobs that have an invoice record in the invoices table
+      if (invoicedJobIds.has(String(job.id))) return false;
+
       const s = normalizeToken(job.status);
       const js = normalizeToken(job.job_status);
       if (s === "invoiced" || js === "invoiced") return false;

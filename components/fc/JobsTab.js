@@ -127,6 +127,21 @@ const getStageInfo = (job) => {
 };
 
 function StageBadges({ job, onClick }) {
+  if (job.ready_for_invoicing) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(job); }}
+        className="flex flex-wrap items-center gap-1 text-left"
+      >
+        <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
+          <CheckCircle2 className="h-2.5 w-2.5" />
+          Job Card Finalised/Completed
+        </span>
+      </button>
+    );
+  }
+
   const stages = getStageInfo(job);
   const doneStages = stages.filter((s) => s.done);
   const pendingStages = stages.filter((s) => !s.done);
@@ -163,27 +178,36 @@ function ProgressDialog({ job, onClose }) {
             Job Progress — {job.job_number || ""}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-2 py-2">
-          {stages.map((stage, i) => (
-            <div
-              key={i}
-              className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
-                stage.done
-                  ? "border-emerald-200 bg-emerald-50"
-                  : "border-slate-200 bg-slate-50"
-              }`}
-            >
-              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
-                stage.done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
-              }`}>
-                {stage.done ? "✓" : "○"}
-              </div>
-              <span className={`text-sm font-medium ${stage.done ? "text-emerald-700" : "text-slate-600"}`}>
-                {stage.label}
-              </span>
+        {job.ready_for_invoicing ? (
+          <div className="py-4 text-center">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-6 py-4">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <span className="text-sm font-semibold text-emerald-700">Job Card Finalised/Completed</span>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="space-y-2 py-2">
+            {stages.map((stage, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
+                  stage.done
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
+                  stage.done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
+                }`}>
+                  {stage.done ? "✓" : "○"}
+                </div>
+                <span className={`text-sm font-medium ${stage.done ? "text-emerald-700" : "text-slate-600"}`}>
+                  {stage.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -392,8 +416,8 @@ export default function JobsTab() {
   const filteredJobs = useMemo(() => {
     const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
     if (jobTab === "job-pool") return visible;
-    if (jobTab === "completed") return visible.filter((j) => getJobStatus(j) === "completed");
-    if (jobTab === "not-completed") return visible.filter((j) => getJobStatus(j) !== "completed" && String(j.role || "").toLowerCase().trim() === "fc");
+    if (jobTab === "completed") return visible.filter((j) => Boolean(j.ready_for_invoicing));
+    if (jobTab === "not-completed") return visible.filter((j) => !j.ready_for_invoicing && String(j.role || "").toLowerCase().trim() === "fc");
     return visible.filter((j) => getJobStatus(j) !== "completed");
   }, [jobs, jobTab, getJobStatus]);
 
@@ -673,7 +697,7 @@ export default function JobsTab() {
               {jobTab === "completed" ? "Ready For Invoicing" : jobTab === "job-pool" ? "Job Pool" : "Not Ready For Invoicing"} ({filteredJobsSearch.length})
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              {jobTab === "completed" ? "Jobs completed and ready for invoicing." : jobTab === "job-pool" ? "All open jobs across roles." : "Jobs in progress or pending."}
+              {jobTab === "completed" ? "Jobs marked ready for invoicing by inventory." : jobTab === "job-pool" ? "All open jobs across roles." : "Jobs in progress or pending."}
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
@@ -747,9 +771,6 @@ export default function JobsTab() {
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => handleViewJob(job)} className="h-8 text-xs flex-1">
                   <Eye className="mr-1 w-3.5 h-3.5" /> View
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => handleEditAndFinalize(job)} className="h-8 text-xs flex-1">
-                  <FileEdit className="mr-1 w-3.5 h-3.5" /> Edit &amp; Finalize
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => handleCancelJob(job)} className="h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
                   <Ban className="w-3.5 h-3.5" />
@@ -826,9 +847,6 @@ export default function JobsTab() {
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="sm" onClick={() => handleViewJob(job)} className="hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-7 px-2 text-[11px]">
                               <Eye className="mr-1 w-3 h-3" /> View
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleEditAndFinalize(job)} className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 h-7 px-2 text-[11px]">
-                              <FileEdit className="mr-1 w-3 h-3" /> Edit &amp; Finalize
                             </Button>
                             <Select disabled={movingJobId === job.id} onValueChange={(value) => {
                               const extraPayload = value === "fc" ? { preserveCompleted: true } : value === "inv" ? { inventoryPlacement: "assign-parts" } : undefined;
@@ -970,9 +988,11 @@ export default function JobsTab() {
                 <Button variant="outline" size="sm" onClick={() => handleViewJob(job)} className="h-8 text-xs flex-1">
                   <Eye className="mr-1 w-3.5 h-3.5" /> View
                 </Button>
+                {jobTab === "completed" && (
                 <Button variant="secondary" size="sm" onClick={() => handleEditAndFinalize(job)} className="h-8 text-xs flex-1">
                   <FileEdit className="mr-1 w-3.5 h-3.5" /> Edit &amp; Finalize
                 </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={() => handleCancelJob(job)} className="h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
                   <Ban className="w-3.5 h-3.5" />
                 </Button>
@@ -1056,9 +1076,11 @@ export default function JobsTab() {
                             <Button variant="ghost" size="sm" onClick={() => handleViewJob(job)} className="hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-7 px-2 text-[11px]">
                               <Eye className="mr-1 w-3 h-3" /> View
                             </Button>
+                            {jobTab === "completed" && (
                             <Button variant="ghost" size="sm" onClick={() => handleEditAndFinalize(job)} className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 h-7 px-2 text-[11px]">
                               <FileEdit className="mr-1 w-3 h-3" /> Edit &amp; Finalize
                             </Button>
+                            )}
                             <Button variant="ghost" size="sm" onClick={() => setMoveHistoryJob(job)} className="hover:bg-slate-50 text-slate-500 hover:text-slate-700 h-7 px-2 text-[11px]">
                               <History className="mr-1 w-3 h-3" /> History
                             </Button>

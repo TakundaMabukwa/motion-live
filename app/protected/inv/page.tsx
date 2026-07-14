@@ -428,6 +428,7 @@ export default function InventoryPage() {
   const [pendingMoveJobId, setPendingMoveJobId] = useState<string | null>(null);
   const [pendingMoveDestination, setPendingMoveDestination] = useState<string>("");
   const [moveToFcNote, setMoveToFcNote] = useState("");
+  const [moveReadyForInvoicing, setMoveReadyForInvoicing] = useState(false);
   const [showTechnicianPicker, setShowTechnicianPicker] = useState(false);
   const [pendingTechnicianMove, setPendingTechnicianMove] = useState<{
     context: "deinstalled" | "stock-used" | "quotation";
@@ -495,6 +496,7 @@ export default function InventoryPage() {
           destination: pendingMoveDestination,
           note: moveToFcNote,
           ...(pendingMoveDestination === "fc" ? { preserveCompleted: true } : {}),
+          ...(pendingMoveDestination === "fc" && moveReadyForInvoicing ? { ready_for_invoicing: true } : {}),
         }),
       });
 
@@ -6865,6 +6867,17 @@ export default function InventoryPage() {
                 rows={5}
               />
             </div>
+            {pendingMoveDestination === "fc" && (
+            <label className="flex items-center gap-3 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={moveReadyForInvoicing}
+                onChange={(e) => setMoveReadyForInvoicing(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Ready for Invoicing</span>
+            </label>
+            )}
             <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
@@ -6873,6 +6886,7 @@ export default function InventoryPage() {
                   setPendingMoveJobId(null);
                   setPendingMoveDestination("");
                   setMoveToFcNote("");
+                  setMoveReadyForInvoicing(false);
                 }}
               >
                 Cancel
