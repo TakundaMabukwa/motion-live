@@ -388,6 +388,7 @@ export default function JobsTab() {
   const filteredJobs = useMemo(() => {
     const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
     if (jobTab === "completed") return visible.filter((j) => getJobStatus(j) === "completed");
+    if (jobTab === "not-completed") return visible.filter((j) => getJobStatus(j) !== "completed" && String(j.role || "").toLowerCase().trim() === "fc");
     return visible.filter((j) => getJobStatus(j) !== "completed");
   }, [jobs, jobTab, getJobStatus]);
 

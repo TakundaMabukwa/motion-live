@@ -8,6 +8,8 @@ const OPTIONAL_JOB_CARD_COLUMNS = [
   'new_serial_number',
   'cost_center_code',
   'cost_center_name',
+  'screenshots',
+  'admin_notes',
 ] as const;
 
 const MOVE_TO_ROLE_ALLOWED = new Set(['inv', 'admin', 'accounts', 'none']);
