@@ -90,7 +90,8 @@ export async function GET(request: NextRequest) {
       } else if (role === 'user') {
         query = query.eq('role', 'user');
       }
-    } else {
+    } else if (!technician) {
+      // Only default to tech role when no technician is specified
       query = query.eq('role', 'tech');
     }
 

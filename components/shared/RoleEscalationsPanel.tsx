@@ -851,15 +851,50 @@ export default function RoleEscalationsPanel({
             <DialogTitle>Move Job to {formatRoleLabel(pendingMoveDestination)}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Note *</Label>
-              <Textarea
-                value={moveNote}
-                onChange={(e) => setMoveNote(e.target.value)}
-                placeholder="Why are you moving this job?"
-                rows={4}
-              />
-            </div>
+            {role === "inv" ? (
+              <>
+                <p className="text-sm text-gray-600">
+                  Select a note before moving this job.
+                </p>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Note *</Label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+                      <input
+                        type="radio"
+                        name="moveNote"
+                        value="stock assigned"
+                        checked={moveNote === "stock assigned"}
+                        onChange={() => setMoveNote("stock assigned")}
+                        className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">stock assigned</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+                      <input
+                        type="radio"
+                        name="moveNote"
+                        value="use boot stock"
+                        checked={moveNote === "use boot stock"}
+                        onChange={() => setMoveNote("use boot stock")}
+                        className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">use boot stock</span>
+                    </label>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Note *</Label>
+                <Textarea
+                  value={moveNote}
+                  onChange={(e) => setMoveNote(e.target.value)}
+                  placeholder="Why are you moving this job?"
+                  rows={4}
+                />
+              </div>
+            )}
             <div className="flex justify-end gap-3">
               <Button
                 variant="outline"

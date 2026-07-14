@@ -3043,7 +3043,7 @@ export default function InventoryPage() {
                           onValueChange={(value) => {
                             setPendingMoveJobId(job.id);
                             setPendingMoveDestination(value);
-                            setMoveToFcNote(value === "admin" ? "stock assigned" : "");
+                            setMoveToFcNote("");
                             setShowMoveToFcDialog(true);
                           }}
                         >
