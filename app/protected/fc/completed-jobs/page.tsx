@@ -441,6 +441,11 @@ function FCCompletedJobsPageContent() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [pendingMoveJob, setPendingMoveJob] = useState<CompletedJob | null>(null);
+  const [pendingMoveDestination, setPendingMoveDestination] = useState("");
+  const [pendingMovePayload, setPendingMovePayload] = useState<Record<string, unknown> | null>(null);
+  const [moveNote, setMoveNote] = useState("");
 
   const isEmbedded = useMemo(() => {
     const embedded = toStringSafe(searchParams.get("embedded"))
@@ -649,7 +654,7 @@ function FCCompletedJobsPageContent() {
     handleEditJob(matchedJob, "finalize");
   }, [isEmbedded, jobs, loading, requestedFinalizeJobId]);
 
-  const handleMoveJob = async (job: CompletedJob, destination: string) => {
+  const handleMoveJob = async (job: CompletedJob, destination: string, note: string, extraPayload?: Record<string, unknown>) => {
     if (!job?.id || !destination) return;
 
     const destinationLabel =
@@ -672,7 +677,8 @@ function FCCompletedJobsPageContent() {
         },
         body: JSON.stringify({
           destination,
-          ...(destination === "accounts" ? { preserveCompleted: true } : {}),
+          note,
+          ...extraPayload,
         }),
       });
 
@@ -1256,7 +1262,14 @@ function FCCompletedJobsPageContent() {
                             </Button>
                             <Select
                               disabled={movingJobId === job.id}
-                              onValueChange={(value) => handleMoveJob(job, value)}
+                              onValueChange={(value) => {
+                                const extraPayload = value === "accounts" ? { preserveCompleted: true } : undefined;
+                                setPendingMoveJob(job);
+                                setPendingMoveDestination(value);
+                                setPendingMovePayload(extraPayload || null);
+                                setMoveNote("");
+                                setShowMoveDialog(true);
+                              }}
                             >
                               <SelectTrigger className="h-8 w-full text-xs">
                                 <SelectValue
@@ -2454,6 +2467,55 @@ function FCCompletedJobsPageContent() {
               </Tabs>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Move Job to {pendingMoveDestination.toUpperCase()}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Note *</Label>
+              <Textarea
+                value={moveNote}
+                onChange={(e) => setMoveNote(e.target.value)}
+                placeholder="Why are you moving this job?"
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowMoveDialog(false);
+                  setPendingMoveJob(null);
+                  setPendingMoveDestination("");
+                  setPendingMovePayload(null);
+                  setMoveNote("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!moveNote.trim()}
+                onClick={() => {
+                  if (pendingMoveJob && moveNote.trim()) {
+                    handleMoveJob(pendingMoveJob, pendingMoveDestination, moveNote.trim(), pendingMovePayload || undefined);
+                    setShowMoveDialog(false);
+                    setPendingMoveJob(null);
+                    setPendingMoveDestination("");
+                    setPendingMovePayload(null);
+                    setMoveNote("");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Move
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

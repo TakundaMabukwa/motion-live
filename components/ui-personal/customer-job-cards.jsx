@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -59,6 +61,11 @@ export default function CustomerJobCards({
   const [searchTerm, setSearchTerm] = useState('');
   const [movingJobId, setMovingJobId] = useState(null);
   const [pendingInventoryAcknowledgementJob, setPendingInventoryAcknowledgementJob] = useState(null);
+  const [acknowledgementNote, setAcknowledgementNote] = useState("");
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [pendingMoveJob, setPendingMoveJob] = useState(null);
+  const [pendingMoveDestination, setPendingMoveDestination] = useState("");
+  const [moveNote, setMoveNote] = useState("");
 
   const fetchJobCards = async () => {
     try {
@@ -99,7 +106,7 @@ export default function CustomerJobCards({
     setRefreshing(false);
   };
 
-  const executeMoveJob = async (job, destination, extraPayload = {}) => {
+  const executeMoveJob = async (job, destination, extraPayload = {}, note = "") => {
     if (!job?.id || !destination) return;
 
     setMovingJobId(job.id);
@@ -119,6 +126,7 @@ export default function CustomerJobCards({
         },
         body: JSON.stringify({
           destination,
+          note,
           inventoryPlacement: destination === 'inv' ? 'assign-parts' : undefined,
           ...extraPayload,
         }),
@@ -147,7 +155,10 @@ export default function CustomerJobCards({
       return;
     }
 
-    await executeMoveJob(job, destination);
+    setPendingMoveJob(job);
+    setPendingMoveDestination(destination);
+    setMoveNote("");
+    setShowMoveDialog(true);
   };
 
   const handleConfirmInventoryAcknowledgement = async () => {
@@ -155,7 +166,8 @@ export default function CustomerJobCards({
 
     const targetJob = pendingInventoryAcknowledgementJob;
     setPendingInventoryAcknowledgementJob(null);
-    await executeMoveJob(targetJob, 'inv', { fc_note_acknowledged: true });
+    setAcknowledgementNote("");
+    await executeMoveJob(targetJob, 'inv', { fc_note_acknowledged: true }, acknowledgementNote);
   };
 
   const getStatusColor = (status) => {
@@ -583,19 +595,78 @@ export default function CustomerJobCards({
                 {getFcMoveNote(pendingInventoryAcknowledgementJob) || 'No note found'}
               </div>
             ) : null}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Your Note *</Label>
+              <Textarea
+                value={acknowledgementNote}
+                onChange={(e) => setAcknowledgementNote(e.target.value)}
+                placeholder="Add a note before moving to Stock Control..."
+                rows={3}
+              />
+            </div>
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => setPendingInventoryAcknowledgementJob(null)}
+                onClick={() => {
+                  setPendingInventoryAcknowledgementJob(null);
+                  setAcknowledgementNote("");
+                }}
                 disabled={movingJobId != null}
               >
                 Cancel
               </Button>
               <Button
+                disabled={movingJobId != null || !acknowledgementNote.trim()}
                 onClick={handleConfirmInventoryAcknowledgement}
-                disabled={movingJobId != null}
               >
                 {movingJobId != null ? 'Moving...' : 'Acknowledge and Move'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Move Job to {pendingMoveDestination === 'inv' ? 'Stock Control' : pendingMoveDestination === 'admin' ? 'Helpdesk' : pendingMoveDestination.toUpperCase()}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Note *</Label>
+              <Textarea
+                value={moveNote}
+                onChange={(e) => setMoveNote(e.target.value)}
+                placeholder="Why are you moving this job?"
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowMoveDialog(false);
+                  setPendingMoveJob(null);
+                  setPendingMoveDestination("");
+                  setMoveNote("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!moveNote.trim()}
+                onClick={() => {
+                  if (pendingMoveJob && moveNote.trim()) {
+                    executeMoveJob(pendingMoveJob, pendingMoveDestination, {}, moveNote.trim());
+                    setShowMoveDialog(false);
+                    setPendingMoveJob(null);
+                    setPendingMoveDestination("");
+                    setMoveNote("");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Move
               </Button>
             </div>
           </div>

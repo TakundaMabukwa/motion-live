@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Activity,
@@ -164,6 +172,11 @@ export default function RoleEscalationsPanel({
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [pendingMoveJob, setPendingMoveJob] = useState<EscalationJob | null>(null);
+  const [pendingMoveDestination, setPendingMoveDestination] = useState("");
+  const [pendingMovePayload, setPendingMovePayload] = useState<Record<string, unknown>>({});
+  const [moveNote, setMoveNote] = useState("");
 
   const fetchEscalations = useCallback(async () => {
     try {
@@ -211,6 +224,7 @@ export default function RoleEscalationsPanel({
     job: EscalationJob,
     destination: string,
     payload: Record<string, unknown> = {},
+    note: string = "",
   ) => {
     if (!job?.id || !destination) return;
 
@@ -225,6 +239,7 @@ export default function RoleEscalationsPanel({
         },
         body: JSON.stringify({
           destination,
+          note,
           ...payload,
         }),
       });
@@ -353,7 +368,11 @@ export default function RoleEscalationsPanel({
         disabled={movingJobId === job.id}
         onValueChange={(value) => {
           const selectedOption = moveOptions.find((option) => option.value === value);
-          handleMoveJob(job, value, selectedOption?.payload || {});
+          setPendingMoveJob(job);
+          setPendingMoveDestination(value);
+          setPendingMovePayload(selectedOption?.payload || {});
+          setMoveNote("");
+          setShowMoveDialog(true);
         }}
       >
         <SelectTrigger className={`h-10 w-full text-sm ${className}`}>
@@ -793,6 +812,55 @@ export default function RoleEscalationsPanel({
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Move Job to {formatRoleLabel(pendingMoveDestination)}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Note *</Label>
+              <Textarea
+                value={moveNote}
+                onChange={(e) => setMoveNote(e.target.value)}
+                placeholder="Why are you moving this job?"
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowMoveDialog(false);
+                  setPendingMoveJob(null);
+                  setPendingMoveDestination("");
+                  setPendingMovePayload({});
+                  setMoveNote("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!moveNote.trim()}
+                onClick={() => {
+                  if (pendingMoveJob && moveNote.trim()) {
+                    handleMoveJob(pendingMoveJob, pendingMoveDestination, pendingMovePayload, moveNote.trim());
+                    setShowMoveDialog(false);
+                    setPendingMoveJob(null);
+                    setPendingMoveDestination("");
+                    setPendingMovePayload({});
+                    setMoveNote("");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Move
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

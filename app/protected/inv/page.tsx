@@ -426,6 +426,7 @@ export default function InventoryPage() {
     useState<TechnicianStockRow | null>(null);
   const [showMoveToFcDialog, setShowMoveToFcDialog] = useState(false);
   const [pendingMoveJobId, setPendingMoveJobId] = useState<string | null>(null);
+  const [pendingMoveDestination, setPendingMoveDestination] = useState<string>("");
   const [moveToFcNote, setMoveToFcNote] = useState("");
   const [showTechnicianPicker, setShowTechnicianPicker] = useState(false);
   const [pendingTechnicianMove, setPendingTechnicianMove] = useState<{
@@ -447,7 +448,7 @@ export default function InventoryPage() {
     null,
   );
 
-  const handleMoveJob = async (jobId: string, destination: string) => {
+  const handleMoveJob = async (jobId: string, destination: string, note: string) => {
     const loadingToast = toast.loading(`Moving job to ${destination}...`);
     try {
       const response = await fetch(`/api/job-cards/${jobId}/move`, {
@@ -457,6 +458,7 @@ export default function InventoryPage() {
         },
         body: JSON.stringify({
           destination,
+          note,
         }),
       });
 
@@ -482,7 +484,7 @@ export default function InventoryPage() {
   const confirmMoveToFc = async () => {
     if (!pendingMoveJobId) return;
 
-    const loadingToast = toast.loading("Moving job to FC...");
+    const loadingToast = toast.loading(`Moving job to ${pendingMoveDestination.toUpperCase()}...`);
     try {
       const response = await fetch(`/api/job-cards/${pendingMoveJobId}/move`, {
         method: "POST",
@@ -490,9 +492,9 @@ export default function InventoryPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          destination: "fc",
+          destination: pendingMoveDestination,
           note: moveToFcNote,
-          preserveCompleted: true,
+          ...(pendingMoveDestination === "fc" ? { preserveCompleted: true } : {}),
         }),
       });
 
@@ -502,17 +504,18 @@ export default function InventoryPage() {
       }
 
       toast.dismiss(loadingToast);
-      toast.success("Job successfully moved to FC");
+      toast.success(`Job successfully moved to ${pendingMoveDestination.toUpperCase()}`);
       removeJobCardLocally(pendingMoveJobId);
       setShowMoveToFcDialog(false);
       setPendingMoveJobId(null);
+      setPendingMoveDestination("");
       setMoveToFcNote("");
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       toast.error(errorMessage);
-      console.error("Error moving job to FC:", error);
+      console.error("Error moving job:", error);
     }
   };
 
@@ -3027,9 +3030,12 @@ export default function InventoryPage() {
                             Boot Stock
                           </Button>
                           <Select
-                            onValueChange={(value) =>
-                              handleMoveJob(job.id, value)
-                            }
+                            onValueChange={(value) => {
+                              setPendingMoveJobId(job.id);
+                              setPendingMoveDestination(value);
+                              setMoveToFcNote("");
+                              setShowMoveToFcDialog(true);
+                            }}
                           >
                             <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
                               <SelectValue placeholder="Move to..." />
@@ -3217,9 +3223,12 @@ export default function InventoryPage() {
                           Assign Parts
                         </Button>
                         <Select
-                          onValueChange={(value) =>
-                            handleMoveJob(job.id, value)
-                          }
+                          onValueChange={(value) => {
+                            setPendingMoveJobId(job.id);
+                            setPendingMoveDestination(value);
+                            setMoveToFcNote("");
+                            setShowMoveToFcDialog(true);
+                          }}
                         >
                           <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
                             <SelectValue placeholder="Move to..." />
@@ -3385,9 +3394,12 @@ export default function InventoryPage() {
                           View Details
                         </Button>
                         <Select
-                          onValueChange={(value) =>
-                            handleMoveJob(job.id, value)
-                          }
+                          onValueChange={(value) => {
+                            setPendingMoveJobId(job.id);
+                            setPendingMoveDestination(value);
+                            setMoveToFcNote("");
+                            setShowMoveToFcDialog(true);
+                          }}
                         >
                           <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
                             <SelectValue placeholder="Move to..." />
@@ -6820,20 +6832,20 @@ export default function InventoryPage() {
       <Dialog open={showMoveToFcDialog} onOpenChange={setShowMoveToFcDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Move Job Back to FC</DialogTitle>
+            <DialogTitle>Move Job to {pendingMoveDestination.toUpperCase()}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Add an optional note for FC before moving this job back.
+              Add a note before moving this job.
             </p>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
-                Note for FC
+                Note *
               </label>
               <Textarea
                 value={moveToFcNote}
                 onChange={(e) => setMoveToFcNote(e.target.value)}
-                placeholder="Optional note for Fleet Consultant..."
+                placeholder="Why are you moving this job?"
                 rows={5}
               />
             </div>
@@ -6843,16 +6855,18 @@ export default function InventoryPage() {
                 onClick={() => {
                   setShowMoveToFcDialog(false);
                   setPendingMoveJobId(null);
+                  setPendingMoveDestination("");
                   setMoveToFcNote("");
                 }}
               >
                 Cancel
               </Button>
               <Button
+                disabled={!moveToFcNote.trim()}
                 onClick={confirmMoveToFc}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                Move to FC
+                Move
               </Button>
             </div>
           </div>

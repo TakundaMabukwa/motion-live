@@ -6,12 +6,14 @@ const buildMoveHistoryEntry = (
   userEmail: string | null,
   fromRole: string | null,
   toRole: string,
+  note: string | null,
 ) => ({
   moved_by: userId,
   user_email: userEmail,
   from_role: fromRole,
   to_role: toRole,
   moved_at: new Date().toISOString(),
+  note: note || null,
 });
 
 const fetchMoveHistory = async (
@@ -51,6 +53,14 @@ export async function POST(
     if (!id || !destination) {
       return NextResponse.json(
         { error: "Job ID and destination are required" },
+        { status: 400 },
+      );
+    }
+
+    const trimmedNote = typeof note === "string" ? note.trim() : "";
+    if (!trimmedNote) {
+      return NextResponse.json(
+        { error: "A note is required when moving a job" },
         { status: 400 },
       );
     }
@@ -126,6 +136,7 @@ export async function POST(
     const moveEntry = buildMoveHistoryEntry(
       user?.id || null, user?.email || null,
       currentJob?.role || null, targetRole,
+      trimmedNote,
     );
 
     // Fetch existing move_history (safe: returns null if column doesn't exist)
@@ -201,16 +212,6 @@ export async function POST(
     // Completed destinations (Accounts and FC with preserveCompleted=true) should avoid escalation.
     // Other role-to-role moves should stay active/pending and surface via escalations.
     if (["fc", "inv", "accounts"].includes(targetRole)) {
-      let nextCompletionNotes: string | null | undefined;
-
-      if (typeof note === "string" && note.trim()) {
-        const trimmedNote = note.trim();
-        const existingNotes = String(currentJob?.completion_notes || "").trim();
-        nextCompletionNotes = existingNotes
-          ? `${existingNotes}\n\n[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`
-          : `[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`;
-      }
-
       const completionPayload = shouldMoveAsCompleted
         ? {
             role: targetRole,
@@ -223,7 +224,6 @@ export async function POST(
             ...escalationPayload,
             move_history: updatedHistory,
             ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
-            ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
           }
         : {
             role: targetRole,
@@ -236,7 +236,6 @@ export async function POST(
             ...escalationPayload,
             move_history: updatedHistory,
             ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
-            ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
           };
 
       const patchUrl = `${new URL(request.url).origin}/api/job-cards/${id}`;

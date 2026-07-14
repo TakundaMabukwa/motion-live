@@ -4,6 +4,14 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -119,6 +127,10 @@ export default function Jobs() {
   const [showStartJobModal, setShowStartJobModal] = useState(false);
   const [showCreateRepairJobModal, setShowCreateRepairJobModal] = useState(false);
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [pendingMoveJob, setPendingMoveJob] = useState<Job | null>(null);
+  const [pendingMoveDestination, setPendingMoveDestination] = useState<TechJobMoveDestination>("inv");
+  const [moveNote, setMoveNote] = useState("");
   const [completingJobId, setCompletingJobId] = useState<string | null>(null);
 
   const itemsPerPage = 50;
@@ -400,7 +412,7 @@ export default function Jobs() {
     return labels[destination] || destination;
   };
 
-  const handleMoveJob = async (job: Job, destination: TechJobMoveDestination) => {
+  const handleMoveJob = async (job: Job, destination: TechJobMoveDestination, note: string) => {
     if (!job?.id || !destination) return;
 
     setMovingJobId(job.id);
@@ -415,6 +427,7 @@ export default function Jobs() {
         },
         body: JSON.stringify({
           destination,
+          note,
           ...(destination === 'inv' ? { inventoryPlacement: 'assign-parts' } : {}),
         }),
       });
@@ -474,7 +487,12 @@ export default function Jobs() {
                 <div className="flex flex-col gap-2">
                   <JobMoveSelect
                     isMoving={movingJobId === job.id}
-                    onMove={(destination) => handleMoveJob(job, destination)}
+                    onMove={(destination) => {
+                      setPendingMoveJob(job);
+                      setPendingMoveDestination(destination);
+                      setMoveNote("");
+                      setShowMoveDialog(true);
+                    }}
                     className="w-full h-10"
                   />
                   {job.job_type === 'repair' && job.job_status === 'created' ? (
@@ -583,7 +601,12 @@ export default function Jobs() {
                     <div className="flex items-center space-x-2">
                       <JobMoveSelect
                         isMoving={movingJobId === job.id}
-                        onMove={(destination) => handleMoveJob(job, destination)}
+                        onMove={(destination) => {
+                          setPendingMoveJob(job);
+                          setPendingMoveDestination(destination);
+                          setMoveNote("");
+                          setShowMoveDialog(true);
+                        }}
                         className="w-[140px] h-9"
                       />
                       {job.job_type === 'repair' && job.job_status === 'created' ? (
@@ -943,6 +966,51 @@ export default function Jobs() {
           fetchUserInfoAndJobs();
         }}
       />
+
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Move Job to {getMoveDestinationLabel(pendingMoveDestination)}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Note *</Label>
+              <Textarea
+                value={moveNote}
+                onChange={(e) => setMoveNote(e.target.value)}
+                placeholder="Why are you moving this job?"
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowMoveDialog(false);
+                  setPendingMoveJob(null);
+                  setMoveNote("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!moveNote.trim()}
+                onClick={() => {
+                  if (pendingMoveJob && moveNote.trim()) {
+                    handleMoveJob(pendingMoveJob, pendingMoveDestination, moveNote.trim());
+                    setShowMoveDialog(false);
+                    setPendingMoveJob(null);
+                    setMoveNote("");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Move
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -46,6 +46,7 @@ import StatsCard from "@/components/shared/StatsCard";
 import RoleEscalationsPanel from "@/components/shared/RoleEscalationsPanel";
 import { toast } from "sonner";
 import CreateJobModal from "./components/CreateJobModal";
+import NewJobModal from "./components/NewJobModal";
 import { AwaitingTestingContent } from "./completed-jobs/page";
 import { AdminScheduleContent } from "./schedule/page";
 
@@ -116,6 +117,11 @@ export default function AdminDashboard() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading] = useState(false);
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [pendingMoveJobId, setPendingMoveJobId] = useState<string | null>(null);
+  const [pendingMoveDestination, setPendingMoveDestination] = useState<string>("");
+  const [pendingMovePayload, setPendingMovePayload] = useState<Record<string, unknown> | null>(null);
+  const [moveNote, setMoveNote] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [jobTypeFilter, setJobTypeFilter] = useState("all");
@@ -153,6 +159,7 @@ export default function AdminDashboard() {
   const [jobsLoaded, setJobsLoaded] = useState(false);
   const [createJobOpen, setCreateJobOpen] = useState(false);
   const [createJobModalOpen, setCreateJobModalOpen] = useState(false);
+  const [newJobModalOpen, setNewJobModalOpen] = useState(false);
   const [createJobStep, setCreateJobStep] = useState(1);
   const [newJobData, setNewJobData] = useState({
     jobType: "install",
@@ -651,7 +658,7 @@ export default function AdminDashboard() {
       !job.technician_name,
   );
 
-  const handleMoveJob = async (jobId: string, destination: string) => {
+  const handleMoveJob = async (jobId: string, destination: string, note: string, extraPayload?: Record<string, unknown>) => {
     setMovingJobId(jobId);
     const loadingToast = toast.loading(`Moving job to ${destination}...`);
 
@@ -663,9 +670,8 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({
           destination,
-          ...(destination === "inv"
-            ? { inventoryPlacement: "assign-parts" }
-            : {}),
+          note,
+          ...extraPayload,
         }),
       });
 
@@ -712,7 +718,14 @@ export default function AdminDashboard() {
     <Select
       key={`${job.id}-${job.move_to || "none"}`}
       disabled={movingJobId === job.id}
-      onValueChange={(value) => handleMoveJob(job.id, value)}
+      onValueChange={(value) => {
+        const extraPayload = value === "inv" ? { inventoryPlacement: "assign-parts" } : undefined;
+        setPendingMoveJobId(job.id);
+        setPendingMoveDestination(value);
+        setPendingMovePayload(extraPayload || null);
+        setMoveNote("");
+        setShowMoveDialog(true);
+      }}
     >
       <SelectTrigger className={className}>
         <SelectValue
@@ -2309,15 +2322,32 @@ export default function AdminDashboard() {
       <div className="gap-4 grid grid-cols-1 md:grid-cols-4">
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => setCreateJobModalOpen(true)}
+          onClick={() => setNewJobModalOpen(true)}
         >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Plus className="w-8 h-8 text-green-600" />
               <div>
-                <h3 className="font-semibold text-gray-900">Create Job</h3>
+                <h3 className="font-semibold text-gray-900">New Job</h3>
                 <p className="text-gray-600 text-sm">
-                  Create a new job with photos and details
+                  Create job + quote with customer &amp; products
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => setCreateJobModalOpen(true)}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Plus className="w-8 h-8 text-blue-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Quick Create</h3>
+                <p className="text-gray-600 text-sm">
+                  Quick job creation with basic details
                 </p>
               </div>
             </div>
@@ -4007,6 +4037,65 @@ export default function AdminDashboard() {
           }
         }}
       />
+
+      {/* New Job Modal */}
+      <NewJobModal
+        isOpen={newJobModalOpen}
+        onClose={() => setNewJobModalOpen(false)}
+        onJobCreated={() => {
+          setNewJobModalOpen(false);
+          fetchJobCards(true);
+        }}
+      />
+
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Move Job to {pendingMoveDestination.toUpperCase()}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Note *</label>
+              <Textarea
+                value={moveNote}
+                onChange={(e) => setMoveNote(e.target.value)}
+                placeholder="Why are you moving this job?"
+                rows={4}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowMoveDialog(false);
+                  setPendingMoveJobId(null);
+                  setPendingMoveDestination("");
+                  setPendingMovePayload(null);
+                  setMoveNote("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!moveNote.trim()}
+                onClick={() => {
+                  if (pendingMoveJobId && moveNote.trim()) {
+                    handleMoveJob(pendingMoveJobId, pendingMoveDestination, moveNote.trim(), pendingMovePayload || undefined);
+                    setShowMoveDialog(false);
+                    setPendingMoveJobId(null);
+                    setPendingMoveDestination("");
+                    setPendingMovePayload(null);
+                    setMoveNote("");
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Move
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
