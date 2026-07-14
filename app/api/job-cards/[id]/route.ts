@@ -274,10 +274,14 @@ export async function PATCH(
       .from('job_cards')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       console.error('Error fetching current job card:', fetchError);
+      return NextResponse.json({ error: 'Job card not found' }, { status: 404 });
+    }
+
+    if (!currentJob) {
       return NextResponse.json({ error: 'Job card not found' }, { status: 404 });
     }
 

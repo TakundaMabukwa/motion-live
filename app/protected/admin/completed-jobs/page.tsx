@@ -1404,64 +1404,55 @@ function JobDetailDialog({
     if (!job) return;
     setSaving(true);
 
-    const SAVEABLE_COLUMNS: Record<string, string> = {
-      job_number: "job_number",
-      job_date: "job_date",
-      due_date: "due_date",
-      start_time: "start_time",
-      end_time: "end_time",
-      status: "status",
-      job_type: "job_type",
-      job_description: "job_description",
-      customer_name: "customer_name",
-      customer_email: "customer_email",
-      customer_phone: "customer_phone",
-      customer_address: "customer_address",
-      vehicle_registration: "vehicle_registration",
-      vehicle_make: "vehicle_make",
-      vehicle_model: "vehicle_model",
-      vehicle_year: "vehicle_year",
-      vehicle_chassis: "vehicle_chassis",
-      vehicle_colour: "vehicle_colour",
-      vin_number: "vin_numer",
-      technician_name: "technician_name",
-      technician_phone: "technician_phone",
-      estimated_duration_hours: "estimated_duration_hours",
-      actual_duration_hours: "actual_duration_hours",
-      work_notes: "work_notes",
-      completion_notes: "completion_notes",
-      special_instructions: "special_instructions",
-      admin_notes: "admin_notes",
-      repair: "repair",
-    };
+  const SAVEABLE_COLUMNS: Record<string, string> = {
+    job_number: "job_number",
+    status: "status",
+    job_type: "job_type",
+    job_description: "job_description",
+    customer_name: "customer_name",
+    customer_email: "customer_email",
+    customer_phone: "customer_phone",
+    customer_address: "customer_address",
+    vehicle_registration: "vehicle_registration",
+    vehicle_make: "vehicle_make",
+    vehicle_model: "vehicle_model",
+    vehicle_year: "vehicle_year",
+    vehicle_chassis: "vehicle_chassis",
+    vehicle_colour: "vehicle_colour",
+    vin_number: "vin_numer",
+    technician_name: "technician_name",
+    technician_phone: "technician_phone",
+    estimated_duration_hours: "estimated_duration_hours",
+    actual_duration_hours: "actual_duration_hours",
+    work_notes: "work_notes",
+    completion_notes: "completion_notes",
+    special_instructions: "special_instructions",
+    admin_notes: "admin_notes",
+    repair: "repair",
+  };
 
-    const payload: Record<string, any> = {};
-    for (const [formKey, dbCol] of Object.entries(SAVEABLE_COLUMNS)) {
-      if (formKey in formData) {
-        payload[dbCol] = formData[formKey];
+  const payload: Record<string, any> = {};
+  for (const [formKey, dbCol] of Object.entries(SAVEABLE_COLUMNS)) {
+    if (formKey in formData) {
+      payload[dbCol] = formData[formKey];
+    }
+  }
+  payload.screenshots = screenshots;
+  delete payload.parts_required;
+  delete payload.equipment_used;
+  delete payload.job_date;
+  delete payload.due_date;
+  delete payload.start_time;
+  delete payload.end_time;
+
+  for (const key of ["estimated_duration_hours", "actual_duration_hours", "vehicle_year"]) {
+    if (key in payload) {
+      const val = payload[key];
+      if (val === "" || val === null || val === undefined || !Number.isFinite(Number(val))) {
+        delete payload[key];
       }
     }
-    payload.screenshots = screenshots;
-    delete payload.parts_required;
-    delete payload.equipment_used;
-
-    for (const key of ["estimated_duration_hours", "actual_duration_hours", "vehicle_year"]) {
-      if (key in payload) {
-        const val = payload[key];
-        if (val === "" || val === null || val === undefined || !Number.isFinite(Number(val))) {
-          delete payload[key];
-        }
-      }
-    }
-
-    if (payload.start_time && !payload.start_time.includes("T")) {
-      const datePart = payload.job_date || job.job_date?.split("T")[0] || new Date().toISOString().split("T")[0];
-      payload.start_time = `${datePart}T${payload.start_time}:00`;
-    }
-    if (payload.end_time && !payload.end_time.includes("T")) {
-      const datePart = payload.job_date || job.job_date?.split("T")[0] || new Date().toISOString().split("T")[0];
-      payload.end_time = `${datePart}T${payload.end_time}:00`;
-    }
+  }
 
     try {
       const response = await fetch(`/api/job-cards/${job.id}`, {

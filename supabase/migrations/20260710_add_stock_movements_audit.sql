@@ -398,7 +398,7 @@ BEGIN
       SELECT item->>'serial_number', item
       FROM jsonb_array_elements(COALESCE(OLD.parts_required, '[]'::jsonb)) AS item
       WHERE NOT EXISTS (
-        SELECT 1 FROM jsonb_array_elements(NEW.parts_required) AS n
+        SELECT 1 FROM jsonb_array_elements(COALESCE(NEW.parts_required, '[]'::jsonb)) AS n
         WHERE n->>'serial_number' = item->>'serial_number'
       )
     LOOP

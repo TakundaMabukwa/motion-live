@@ -84,13 +84,14 @@ export async function GET(request: NextRequest) {
     }
     if (role && role !== 'all') {
       if (role === 'tech') {
-        // For tech role, show all jobs unless filtered by technician
-        // This allows tech admins to see all jobs
+        query = query.eq('role', 'tech');
       } else if (role === 'admin') {
-        query = query.in('job_type', ['install', 'maintenance']);
+        query = query.eq('role', 'admin');
       } else if (role === 'user') {
-        query = query.in('job_type', ['repair', 'deinstall']);
+        query = query.eq('role', 'user');
       }
+    } else {
+      query = query.eq('role', 'tech');
     }
 
     const { data, error } = await query;

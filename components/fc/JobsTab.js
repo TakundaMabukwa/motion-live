@@ -30,6 +30,7 @@ const JOB_TABS = [
   { id: "job-pool", label: "Job Pool" },
   { id: "not-completed", label: "Not Ready For Invoicing" },
   { id: "completed", label: "Ready For Invoicing" },
+  { id: "completed-filter", label: "Ready for Invoicing(Old)" },
 ];
 
 const parseProducts = (val) => {
