@@ -322,9 +322,9 @@ BEGIN
   -- Parts REMOVED from assigned_parts (went somewhere)
   FOR v_serial, v_item IN
     SELECT item->>'serial_number', item
-    FROM jsonb_array_elements(OLD.assigned_parts) AS item
+    FROM jsonb_array_elements(COALESCE(OLD.assigned_parts, '[]'::jsonb)) AS item
     WHERE NOT EXISTS (
-      SELECT 1 FROM jsonb_array_elements(NEW.assigned_parts) AS n
+      SELECT 1 FROM jsonb_array_elements(COALESCE(NEW.assigned_parts, '[]'::jsonb)) AS n
       WHERE n->>'serial_number' = item->>'serial_number'
     )
   LOOP
@@ -348,9 +348,9 @@ BEGIN
   -- Parts ADDED to assigned_parts (came from somewhere)
   FOR v_serial, v_item IN
     SELECT item->>'serial_number', item
-    FROM jsonb_array_elements(NEW.assigned_parts) AS item
+    FROM jsonb_array_elements(COALESCE(NEW.assigned_parts, '[]'::jsonb)) AS item
     WHERE NOT EXISTS (
-      SELECT 1 FROM jsonb_array_elements(OLD.assigned_parts) AS o
+      SELECT 1 FROM jsonb_array_elements(COALESCE(OLD.assigned_parts, '[]'::jsonb)) AS o
       WHERE o->>'serial_number' = item->>'serial_number'
     )
   LOOP
@@ -396,7 +396,7 @@ BEGIN
     -- Removed from parts_required
     FOR v_serial, v_item IN
       SELECT item->>'serial_number', item
-      FROM jsonb_array_elements(OLD.parts_required) AS item
+      FROM jsonb_array_elements(COALESCE(OLD.parts_required, '[]'::jsonb)) AS item
       WHERE NOT EXISTS (
         SELECT 1 FROM jsonb_array_elements(NEW.parts_required) AS n
         WHERE n->>'serial_number' = item->>'serial_number'
@@ -431,9 +431,9 @@ BEGIN
     -- Added to parts_required
     FOR v_serial, v_item IN
       SELECT item->>'serial_number', item
-      FROM jsonb_array_elements(NEW.parts_required) AS item
+      FROM jsonb_array_elements(COALESCE(NEW.parts_required, '[]'::jsonb)) AS item
       WHERE NOT EXISTS (
-        SELECT 1 FROM jsonb_array_elements(OLD.parts_required) AS o
+        SELECT 1 FROM jsonb_array_elements(COALESCE(OLD.parts_required, '[]'::jsonb)) AS o
         WHERE o->>'serial_number' = item->>'serial_number'
       )
     LOOP
@@ -472,9 +472,9 @@ BEGIN
     -- Removed from equipment_used
     FOR v_serial, v_item IN
       SELECT item->>'serial_number', item
-      FROM jsonb_array_elements(OLD.equipment_used) AS item
+      FROM jsonb_array_elements(COALESCE(OLD.equipment_used, '[]'::jsonb)) AS item
       WHERE NOT EXISTS (
-        SELECT 1 FROM jsonb_array_elements(NEW.equipment_used) AS n
+        SELECT 1 FROM jsonb_array_elements(COALESCE(NEW.equipment_used, '[]'::jsonb)) AS n
         WHERE n->>'serial_number' = item->>'serial_number'
       )
     LOOP
@@ -508,9 +508,9 @@ BEGIN
     -- Added to equipment_used
     FOR v_serial, v_item IN
       SELECT item->>'serial_number', item
-      FROM jsonb_array_elements(NEW.equipment_used) AS item
+      FROM jsonb_array_elements(COALESCE(NEW.equipment_used, '[]'::jsonb)) AS item
       WHERE NOT EXISTS (
-        SELECT 1 FROM jsonb_array_elements(OLD.equipment_used) AS o
+        SELECT 1 FROM jsonb_array_elements(COALESCE(OLD.equipment_used, '[]'::jsonb)) AS o
         WHERE o->>'serial_number' = item->>'serial_number'
       )
     LOOP

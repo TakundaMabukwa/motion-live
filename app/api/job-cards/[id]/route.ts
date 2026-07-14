@@ -311,11 +311,22 @@ export async function PATCH(
     }
 
     // Prepare update data - remove technician if job is being completed
-    const updateData = {
-      ...body,
-      updated_at: new Date().toISOString(),
-      updated_by: user.id
-    };
+    const READ_ONLY_COLUMNS = new Set([
+      'id', 'created_at', 'created_by', 'updated_at', 'updated_by',
+      'parts_required', 'equipment_used', 'before_photos', 'after_photos',
+      'quotation_products', 'quotation_number', 'quote_status',
+      'is_invoiced', 'invoice_number', 'invoice_date',
+      'annuity_multiplier', 'annuity_amount', 'annuity_date',
+      'escalation_role', 'escalation_notes',
+    ]);
+    const updateData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(body)) {
+      if (!READ_ONLY_COLUMNS.has(key)) {
+        updateData[key] = value;
+      }
+    }
+    updateData.updated_at = new Date().toISOString();
+    updateData.updated_by = user.id;
 
     if (
       isBeingCompleted ||

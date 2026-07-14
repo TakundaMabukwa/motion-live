@@ -1427,6 +1427,17 @@ function JobDetailDialog({
       }
     }
     payload.screenshots = screenshots;
+    delete payload.parts_required;
+    delete payload.equipment_used;
+
+    for (const key of ["estimated_duration_hours", "actual_duration_hours", "vehicle_year"]) {
+      if (key in payload) {
+        const val = payload[key];
+        if (val === "" || val === null || val === undefined || !Number.isFinite(Number(val))) {
+          delete payload[key];
+        }
+      }
+    }
 
     if (payload.start_time && !payload.start_time.includes("T")) {
       const datePart = payload.job_date || job.job_date?.split("T")[0] || new Date().toISOString().split("T")[0];
