@@ -3039,23 +3039,23 @@ export default function InventoryPage() {
                             <Package className="mr-1 w-3 h-3" />
                             Boot Stock
                           </Button>
-                          <Select
-                            onValueChange={(value) => {
-                              setPendingMoveJobId(job.id);
-                              setPendingMoveDestination(value);
-                              setMoveToFcNote("");
-                              setShowMoveToFcDialog(true);
-                            }}
-                          >
-                            <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
-                              <SelectValue placeholder="Move to..." />
-                            </SelectTrigger>
-                            <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
-                              <SelectItem
-                                value="admin"
-                                className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3"
-                              >
-                                Admin
+                        <Select
+                          onValueChange={(value) => {
+                            setPendingMoveJobId(job.id);
+                            setPendingMoveDestination(value);
+                            setMoveToFcNote(value === "admin" ? "stock assigned" : "");
+                            setShowMoveToFcDialog(true);
+                          }}
+                        >
+                          <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
+                            <SelectValue placeholder="Move to..." />
+                          </SelectTrigger>
+                          <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
+                            <SelectItem
+                              value="admin"
+                              className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3"
+                            >
+                              Admin
                               </SelectItem>
                               <SelectItem
                                 value="fc"
@@ -3364,13 +3364,9 @@ export default function InventoryPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
-                      {job.completion_notes ? (
-                        <div className="truncate max-w-[200px] text-gray-700">
-                          {job.completion_notes}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 italic">No notes</span>
-                      )}
+                      <div className="truncate text-[11px] text-slate-600 max-w-[200px]" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
+                        {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return <span className="text-gray-400 italic">No notes</span>; const last = h[h.length - 1]; return last.note || <span className="text-gray-400 italic">No notes</span>; })()}
+                      </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
                       <div className="flex justify-end items-center gap-2">

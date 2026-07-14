@@ -95,6 +95,7 @@ interface CompletedJob {
   special_instructions?: string;
   admin_notes?: string;
   screenshots?: unknown;
+  move_history?: Array<{ note?: string; moved_at?: string; [key: string]: unknown }>;
 }
 
 type GenericRecord = Record<string, unknown>;
@@ -110,6 +111,12 @@ const parseArrayField = (value: unknown): unknown[] => {
     }
   }
   return [];
+};
+
+const getLastMoveNote = (moveHistory?: Array<{ note?: string; [key: string]: unknown }>): string => {
+  if (!Array.isArray(moveHistory) || moveHistory.length === 0) return "—";
+  const last = moveHistory[moveHistory.length - 1];
+  return last?.note || "—";
 };
 
 const extractPhotoUrl = (item: unknown): string | null => {
@@ -1097,6 +1104,9 @@ export function AwaitingTestingContent({
                     <th className="px-4 py-3 text-left font-medium text-gray-500">
                       Evidence
                     </th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500">
+                      Notes
+                    </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500">
                       Actions
                     </th>
@@ -1182,6 +1192,11 @@ export function AwaitingTestingContent({
                             {parts.length} parts, {quoteItems.length} items
                           </div>
                         </td>
+                        <td className="px-4 py-3 align-middle text-sm text-gray-700 max-w-[180px]">
+                          <div className="truncate" title={getLastMoveNote(job.move_history)}>
+                            {getLastMoveNote(job.move_history)}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 align-middle">
                           <div className="flex justify-end gap-2">
                             <Button
@@ -1196,7 +1211,7 @@ export function AwaitingTestingContent({
                             <Button
                               onClick={() => {
                                 setPendingMoveJob(job);
-                                setMoveNote("");
+                                setMoveNote("Testing done");
                                 setShowMoveDialog(true);
                               }}
                               size="sm"

@@ -640,6 +640,20 @@ export default function RoleEscalationsPanel({
                         ) : null}
                       </div>
 
+                      <div className="rounded-lg border border-slate-200 p-3 text-sm">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Notes
+                        </p>
+                        <p className="mt-1 text-xs text-slate-700">
+                          {(() => {
+                            const h = (job as Record<string, unknown>)?.move_history;
+                            if (!Array.isArray(h) || !h.length) return "—";
+                            const last = h[h.length - 1] as Record<string, unknown>;
+                            return String(last?.note || "—");
+                          })()}
+                        </p>
+                      </div>
+
                       {renderJobActions(job, "mobile")}
                     </div>
                   );
@@ -673,6 +687,9 @@ export default function RoleEscalationsPanel({
                       </th>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
                         Details
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        Notes
                       </th>
                       <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">
                         Actions
@@ -798,6 +815,21 @@ export default function RoleEscalationsPanel({
                                 )}
                               </>
                             ) : null}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 max-w-[160px]">
+                          <div className="truncate text-[11px]" title={(() => {
+                            const h = (job as Record<string, unknown>)?.move_history;
+                            if (!Array.isArray(h) || !h.length) return "";
+                            const last = h[h.length - 1] as Record<string, unknown>;
+                            return String(last?.note || "");
+                          })()}>
+                            {(() => {
+                              const h = (job as Record<string, unknown>)?.move_history;
+                              if (!Array.isArray(h) || !h.length) return "—";
+                              const last = h[h.length - 1] as Record<string, unknown>;
+                              return String(last?.note || "—");
+                            })()}
                           </div>
                         </td>
                         <td className="px-3 py-2 text-right">

@@ -8,12 +8,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-export type TechJobMoveDestination = 'inv' | 'admin' | 'fc';
+export type TechJobMoveDestination = 'admin';
 
 const MOVE_DESTINATION_LABELS: Record<TechJobMoveDestination, string> = {
-  inv: 'Inventory',
   admin: 'Admin',
-  fc: 'FC',
 };
 
 type JobMoveSelectProps = {
@@ -35,16 +33,10 @@ export default function JobMoveSelect({
       onValueChange={(value) => onMove(value as TechJobMoveDestination)}
     >
       <SelectTrigger className={className}>
-        <SelectValue placeholder={isMoving ? 'Moving...' : 'Move to...'} />
+        <SelectValue placeholder={isMoving ? 'Moving...' : 'Move to Admin'} />
       </SelectTrigger>
       <SelectContent>
-        {(Object.keys(MOVE_DESTINATION_LABELS) as TechJobMoveDestination[]).map(
-          (destination) => (
-            <SelectItem key={destination} value={destination}>
-              {MOVE_DESTINATION_LABELS[destination]}
-            </SelectItem>
-          ),
-        )}
+        <SelectItem value="admin">Admin</SelectItem>
       </SelectContent>
     </Select>
   );

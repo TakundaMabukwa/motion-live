@@ -1022,7 +1022,6 @@ export default function JobsTab() {
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Vehicle</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Account</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Type</th>
-                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Status</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 max-w-[160px]">Notes</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Date</th>
                     <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">Actions</th>
@@ -1030,13 +1029,6 @@ export default function JobsTab() {
                 </thead>
                 <tbody>
                   {filteredJobsSearch.map((job) => {
-                    const sb = ((st) => {
-                      if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
-                      if (st === "in progress" || st === "processing") return { label: "In Progress", cls: "border-blue-200 bg-blue-50 text-blue-700" };
-                      if (st === "pending" || st === "new") return { label: "Pending", cls: "border-amber-200 bg-amber-50 text-amber-700" };
-                      return { label: st || "N/A", cls: "border-slate-200 bg-slate-50 text-slate-700" };
-                    })(getJobStatus(job));
-
                     return (
                       <tr key={job.id} className="border-b border-slate-100 align-top hover:bg-slate-50/60">
                         <td className="px-3 py-2">
@@ -1054,15 +1046,6 @@ export default function JobsTab() {
                           <span className="font-mono text-[11px]">{job.new_account_number || "N/A"}</span>
                         </td>
                         <td className="px-3 py-2 text-slate-700 text-[11px]">{getJobTypeDisplay(job.job_type)}</td>
-                        <td className="px-3 py-2 text-slate-700">
-                          <div className="flex flex-col gap-1">
-                            <Badge variant="outline" className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold w-fit ${sb.cls}`}>{sb.label}</Badge>
-                            {job.escalation_role && String(job.escalation_role).toLowerCase() === "fc" && (
-                              <Badge variant="outline" className="h-5 rounded-sm border border-orange-200 bg-orange-50 px-1.5 text-[10px] font-semibold text-orange-700 w-fit">Escalated</Badge>
-                            )}
-                            <StageBadges job={job} onClick={setProgressJob} />
-                          </div>
-                        </td>
                         <td className="px-3 py-2 text-slate-700 max-w-[160px]">
                           <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
                             {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
