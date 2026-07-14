@@ -30,7 +30,7 @@ const JOB_TABS = [
   { id: "job-pool", label: "Job Pool" },
   { id: "not-completed", label: "Not Ready For Invoicing" },
   { id: "completed", label: "Ready For Invoicing" },
-  { id: "completed-filter", label: "Ready for Invoicing(Old)" },
+  { id: "completed-old", label: "Ready for Invoicing (old)" },
 ];
 
 const parseProducts = (val) => {
@@ -414,13 +414,13 @@ export default function JobsTab() {
     return js || s || "pending";
   }, []);
 
-  const filteredJobs = useMemo(() => {
-    const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
-    if (jobTab === "job-pool") return visible;
-    if (jobTab === "completed") return visible.filter((j) => Boolean(j.ready_for_invoicing));
-    if (jobTab === "not-completed") return visible.filter((j) => !j.ready_for_invoicing && String(j.role || "").toLowerCase().trim() === "fc");
-    return visible.filter((j) => getJobStatus(j) !== "completed");
-  }, [jobs, jobTab, getJobStatus]);
+  const isCompletedNotInvoiced = useCallback((job) => {
+    const completed = String(job.status || "").toLowerCase() === "completed" || String(job.job_status || "").toLowerCase() === "completed";
+    if (!completed) return false;
+    
+    if ('has_invoice' in job && job.has_invoice) return false;
+    return true;
+  }, []);
 
   const filteredJobsSearch = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -695,10 +695,10 @@ export default function JobsTab() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-              {jobTab === "completed" ? "Ready For Invoicing" : jobTab === "job-pool" ? "Job Pool" : "Not Ready For Invoicing"} ({filteredJobsSearch.length})
+              {jobTab === "completed" ? "Ready For Invoicing" : jobTab === "completed-old" ? "Ready for Invoicing (old)" : jobTab === "job-pool" ? "Job Pool" : "Not Ready For Invoicing"} ({filteredJobsSearch.length})
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              {jobTab === "completed" ? "Jobs marked ready for invoicing by inventory." : jobTab === "job-pool" ? "All open jobs across roles." : "Jobs in progress or pending."}
+              {jobTab === "completed" ? "Jobs marked ready for invoicing by inventory." : jobTab === "completed-old" ? "Completed jobs that haven't been invoiced yet." : jobTab === "job-pool" ? "All open jobs across roles." : "Jobs in progress or pending."}
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
