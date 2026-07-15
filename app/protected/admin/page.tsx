@@ -95,7 +95,7 @@ interface JobCard {
   vin_numer?: string;
   odormeter?: string;
   role?: string;
-  move_history?: Array<{ note?: string; [key: string]: unknown }>;
+  move_history?: Array<{ note?: string;[key: string]: unknown }>;
   move_to?: string;
   escalation_role?: string;
   escalation_source_role?: string;
@@ -933,9 +933,9 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           jobId: selectedJob.id,
           technicianName: technicianNames,
+          technicianEmail: technicianEmails,
           jobDate: assignmentDate,
           startTime: assignmentTime || "09:00",
-          assignmentNotes: assignmentNotes || null,
         }),
       });
 
@@ -955,7 +955,7 @@ export default function AdminDashboard() {
       } else {
         toast.success(
           data.message ||
-            `Technician${selectedTechnicians.length > 1 ? "s" : ""} assigned successfully`,
+          `Technician${selectedTechnicians.length > 1 ? "s" : ""} assigned successfully`,
         );
       }
 
@@ -1007,9 +1007,9 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           jobId: selectedJob.id,
           technicianName: technicianNames,
+          technicianEmail: technicianEmails,
           jobDate: assignmentDate,
           startTime: assignmentTime || "09:00",
-          assignmentNotes: assignmentNotes || null,
           override: true, // This flag tells the API to skip conflict detection
         }),
       });
@@ -1506,11 +1506,11 @@ export default function AdminDashboard() {
       };
       const aPriority =
         priorityOrder[
-          a.priority?.toLowerCase() as keyof typeof priorityOrder
+        a.priority?.toLowerCase() as keyof typeof priorityOrder
         ] ?? 5;
       const bPriority =
         priorityOrder[
-          b.priority?.toLowerCase() as keyof typeof priorityOrder
+        b.priority?.toLowerCase() as keyof typeof priorityOrder
         ] ?? 5;
 
       return aPriority - bPriority;
@@ -2339,7 +2339,7 @@ export default function AdminDashboard() {
               <div>
                 <h3 className="font-semibold text-gray-900">New Job</h3>
                 <p className="text-gray-600 text-sm">
-                  Create job + quote with customer &amp; products
+                  Create install or de-install job
                 </p>
               </div>
             </div>
@@ -2352,17 +2352,17 @@ export default function AdminDashboard() {
         >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <Plus className="w-8 h-8 text-blue-600" />
+              <Plus className="w-8 h-2 text-blue-600" />
               <div>
-                <h3 className="font-semibold text-gray-900">Quick Create</h3>
+                <h3 className="font-semibold text-gray-900">Create Repair Job</h3>
                 <p className="text-gray-600 text-sm">
-                  Quick job creation with basic details
+                  Create repair job
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
-
+        {/* 
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
           onClick={() =>
@@ -2380,7 +2380,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
@@ -2398,7 +2398,7 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
-
+        {/* 
         <Card
           className="hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => setActiveTab("assigned-technician")}
@@ -2414,7 +2414,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Custom Top Bar Navigation */}
@@ -2424,11 +2424,10 @@ export default function AdminDashboard() {
             <button
               key={item.value}
               onClick={() => setActiveTab(item.value)}
-              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 ${
-                activeTab === item.value
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 ${activeTab === item.value
                   ? "bg-blue-50 text-blue-600 border border-blue-200"
                   : "text-gray-700 hover:text-gray-900 hover:bg-gray-50"
-              }`}
+                }`}
             >
               {item.icon && <item.icon className="w-4 h-4" />}
               <span>{item.label}</span>
@@ -2509,8 +2508,8 @@ export default function AdminDashboard() {
                         <p className="text-sm text-gray-900">
                           {selectedJob.due_date
                             ? new Date(
-                                selectedJob.due_date,
-                              ).toLocaleDateString()
+                              selectedJob.due_date,
+                            ).toLocaleDateString()
                             : "Not set"}
                         </p>
                       </div>
@@ -2810,19 +2809,6 @@ export default function AdminDashboard() {
                       onChange={(e) => setAssignmentTime(e.target.value)}
                     />
                   </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Notes (Optional)
-                  </Label>
-                  <Textarea
-                    id="assignment-notes"
-                    placeholder="Add any notes about this assignment..."
-                    value={assignmentNotes}
-                    onChange={(e) => setAssignmentNotes(e.target.value)}
-                    rows={3}
-                  />
                 </div>
               </div>
             </div>
@@ -3184,8 +3170,8 @@ export default function AdminDashboard() {
                           <p className="font-medium">
                             {selectedJob.job_date
                               ? new Date(
-                                  selectedJob.job_date,
-                                ).toLocaleDateString()
+                                selectedJob.job_date,
+                              ).toLocaleDateString()
                               : "Not Scheduled"}
                           </p>
                         </div>
@@ -3523,11 +3509,10 @@ export default function AdminDashboard() {
                         {vehiclesIp.map((vehicle) => (
                           <div
                             key={vehicle.id}
-                            className={`p-2 border rounded cursor-pointer hover:bg-blue-100 ${
-                              selectedVehicleIp?.id === vehicle.id
+                            className={`p-2 border rounded cursor-pointer hover:bg-blue-100 ${selectedVehicleIp?.id === vehicle.id
                                 ? "bg-blue-200 border-blue-400"
                                 : "bg-white"
-                            }`}
+                              }`}
                             onClick={() => handleVehicleIpSelect(vehicle)}
                           >
                             <div className="font-medium text-sm">

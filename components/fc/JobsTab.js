@@ -29,6 +29,7 @@ import InvoiceJobModal from "./InvoiceJobModal";
 const JOB_TABS = [
   { id: "job-pool", label: "Job Pool" },
   { id: "not-completed", label: "Not Ready For Invoicing" },
+  { id: "not-completed-old", label: "Not Ready For Invoicing (old)" },
   { id: "completed", label: "Ready For Invoicing" },
   { id: "completed-old", label: "Ready for Invoicing (old)" },
 ];
@@ -247,6 +248,7 @@ export default function JobsTab() {
   const [pendingMoveDestination, setPendingMoveDestination] = useState("");
   const [pendingMovePayload, setPendingMovePayload] = useState(null);
   const [moveNote, setMoveNote] = useState("");
+  const [selectedMoveNoteOption, setSelectedMoveNoteOption] = useState("");
   const [moveHistoryJob, setMoveHistoryJob] = useState(null);
   const [progressJob, setProgressJob] = useState(null);
 
@@ -422,14 +424,23 @@ export default function JobsTab() {
     return true;
   }, []);
 
+  const isNotCompletedAndNotInvoiced = useCallback((job) => {
+    const completed = String(job.status || "").toLowerCase() === "completed" || String(job.job_status || "").toLowerCase() === "completed";
+    if (completed) return false;
+    
+    if ('has_invoice' in job && job.has_invoice) return false;
+    return true;
+  }, []);
+
   const filteredJobs = useMemo(() => {
     const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
     if (jobTab === "job-pool") return visible;
     if (jobTab === "completed") return visible.filter((j) => Boolean(j.ready_for_invoicing));
     if (jobTab === "not-completed") return visible.filter((j) => !j.ready_for_invoicing && String(j.role || "").toLowerCase().trim() === "fc");
+    if (jobTab === "not-completed-old") return visible.filter((j) => isNotCompletedAndNotInvoiced(j));
     if (jobTab === "completed-old") return visible.filter((j) => isCompletedNotInvoiced(j));
     return visible.filter((j) => getJobStatus(j) !== "completed");
-  }, [jobs, jobTab, getJobStatus, isCompletedNotInvoiced]);
+  }, [jobs, jobTab, getJobStatus, isCompletedNotInvoiced, isNotCompletedAndNotInvoiced]);
 
   const filteredJobsSearch = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -864,6 +875,7 @@ export default function JobsTab() {
                               setPendingMoveDestination(value);
                               setPendingMovePayload(extraPayload || null);
                               setMoveNote("");
+                              setSelectedMoveNoteOption("");
                               setShowMoveDialog(true);
                             }}>
                               <SelectTrigger className="h-7 w-[100px] text-[11px]">
@@ -998,7 +1010,7 @@ export default function JobsTab() {
                 <Button variant="outline" size="sm" onClick={() => handleViewJob(job)} className="h-8 text-xs flex-1">
                   <Eye className="mr-1 w-3.5 h-3.5" /> View
                 </Button>
-                {jobTab === "completed" && (
+                {(jobTab === "completed" || jobTab === "completed-old") && (
                 <Button variant="secondary" size="sm" onClick={() => handleEditAndFinalize(job)} className="h-8 text-xs flex-1">
                   <FileEdit className="mr-1 w-3.5 h-3.5" /> Edit &amp; Finalize
                 </Button>
@@ -1020,8 +1032,8 @@ export default function JobsTab() {
         <CardContent className="p-0">
           {loading ? (
             <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
-          ) : filteredJobsSearch.length === 0 ? (
-          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "ready for invoicing" : "not ready for invoicing"} jobs found.</p></div>
+        ) : filteredJobsSearch.length === 0 ? (
+          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "ready for invoicing" : jobTab === "not-completed-old" ? "not ready for invoicing (old)" : "not ready for invoicing"} jobs found.</p></div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[960px] border-collapse text-xs">
@@ -1069,7 +1081,7 @@ export default function JobsTab() {
                             <Button variant="ghost" size="sm" onClick={() => handleViewJob(job)} className="hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-7 px-2 text-[11px]">
                               <Eye className="mr-1 w-3 h-3" /> View
                             </Button>
-                            {jobTab === "completed" && (
+                            {(jobTab === "completed" || jobTab === "completed-old") && (
                             <Button variant="ghost" size="sm" onClick={() => handleEditAndFinalize(job)} className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 h-7 px-2 text-[11px]">
                               <FileEdit className="mr-1 w-3 h-3" /> Edit &amp; Finalize
                             </Button>
@@ -1083,6 +1095,7 @@ export default function JobsTab() {
                               setPendingMoveDestination(value);
                               setPendingMovePayload(extraPayload || null);
                               setMoveNote("");
+                              setSelectedMoveNoteOption("");
                               setShowMoveDialog(true);
                             }}>
                               <SelectTrigger className="h-7 w-[100px] text-[11px]">
@@ -1419,15 +1432,51 @@ export default function JobsTab() {
             <DialogTitle>Move Job to {pendingMoveDestination === "inv" ? "Stock Control" : pendingMoveDestination === "fc" ? "FC" : "Helpdesk"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Note *</Label>
-              <Textarea
-                value={moveNote}
-                onChange={(e) => setMoveNote(e.target.value)}
-                placeholder="Why are you moving this job?"
-                rows={4}
-              />
-            </div>
+            {(jobTab === "not-completed" || jobTab === "not-completed-old") ? (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Select Reason *</Label>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="moveNoteOption"
+                      value="DETAILS_COMPLETED"
+                      checked={selectedMoveNoteOption === "DETAILS_COMPLETED"}
+                      onChange={(e) => {
+                        setSelectedMoveNoteOption(e.target.value);
+                        setMoveNote(e.target.value);
+                      }}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">DETAILS_COMPLETED</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="moveNoteOption"
+                      value="JOB_CARD_UPDATED"
+                      checked={selectedMoveNoteOption === "JOB_CARD_UPDATED"}
+                      onChange={(e) => {
+                        setSelectedMoveNoteOption(e.target.value);
+                        setMoveNote(e.target.value);
+                      }}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">JOB_CARD_UPDATED</span>
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Note *</Label>
+                <Textarea
+                  value={moveNote}
+                  onChange={(e) => setMoveNote(e.target.value)}
+                  placeholder="Why are you moving this job?"
+                  rows={4}
+                />
+              </div>
+            )}
             <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
@@ -1437,6 +1486,7 @@ export default function JobsTab() {
                   setPendingMoveDestination("");
                   setPendingMovePayload(null);
                   setMoveNote("");
+                  setSelectedMoveNoteOption("");
                 }}
               >
                 Cancel
@@ -1451,6 +1501,7 @@ export default function JobsTab() {
                     setPendingMoveDestination("");
                     setPendingMovePayload(null);
                     setMoveNote("");
+                    setSelectedMoveNoteOption("");
                   }
                 }}
                 className="bg-blue-600 hover:bg-blue-700"

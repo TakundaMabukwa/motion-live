@@ -92,6 +92,7 @@ const splitTechnicianCsv = (value: string | null | undefined) =>
 
 const isJobOpenForTechnician = (job: Job) => {
   if (!isJobActiveInTechQueue(job)) return false;
+  if (wasJobReturnedToAdmin(job)) return false;
 
   const normalizedJobStatus = String(job.job_status || '').trim().toLowerCase();
   const normalizedStatus = String(job.status || '').trim().toLowerCase();
@@ -100,6 +101,14 @@ const isJobOpenForTechnician = (job: Job) => {
     ['created', 'pending', 'active', 'in_progress', 'assigned'].includes(normalizedJobStatus || normalizedStatus) ||
     normalizedStatus === 'assigned'
   );
+};
+
+const wasJobReturnedToAdmin = (job: Job): boolean => {
+  const history = (job as any).move_history;
+  if (!Array.isArray(history) || history.length === 0) return false;
+  const last = history[history.length - 1];
+  const note = String(last?.note || '').trim().toLowerCase();
+  return note === 'job done' || note === 'job incomplete';
 };
 
 export default function Jobs() {
@@ -262,10 +271,10 @@ export default function Jobs() {
 
   // Get job statistics
   const getJobStats = () => {
-    const totalNew = userJobs.filter(job => job.job_status === 'created' && !job.technician_phone).length;
+    const totalNew = userJobs.filter(job => job.job_status === 'created' && !job.technician_phone && !wasJobReturnedToAdmin(job)).length;
     const totalOpen = userJobs.filter(job => isJobOpenForTechnician(job)).length;
-    const totalCompleted = userJobs.filter((job) => isJobMarkedCompleted(job)).length;
-    const totalRepair = userJobs.filter(job => job.repair === true).length;
+    const totalCompleted = userJobs.filter((job) => isJobMarkedCompleted(job) && !wasJobReturnedToAdmin(job)).length;
+    const totalRepair = userJobs.filter(job => job.repair === true && !wasJobReturnedToAdmin(job)).length;
     const serviceUpcoming = userJobs.filter(job => {
       if (!job.job_date) return false;
       const jobDate = new Date(job.job_date);
@@ -342,7 +351,11 @@ export default function Jobs() {
     const loadingToast = toast.loading(`Completing job ${job.job_number}...`);
 
     try {
-      const result = await completeTechJobCard(job.id);
+      const result = await completeTechJobCard(job.id, {
+        completion_notes: 'Job done',
+        user_id: userInfo?.user?.id || null,
+        user_email: userInfo?.user?.email || null,
+      });
       if (!result.ok) {
         throw new Error(result.error);
       }
@@ -360,10 +373,6 @@ export default function Jobs() {
     } finally {
       setCompletingJobId(null);
     }
-  };
-
-  const handleCompleteJobFromList = (job: Job) => {
-    void handleCompleteJob(job);
   };
 
   const handleAddVehicleToInventory = async (job: Job) => {
@@ -470,15 +479,15 @@ export default function Jobs() {
                   </Badge>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <JobMoveSelect
-                    isMoving={movingJobId === job.id}
-                    onMove={(destination) => {
-                      const isCompleted = String(job.status || '').toLowerCase() === 'completed' || String(job.job_status || '').toLowerCase() === 'completed';
-                      const note = isCompleted ? 'Job done' : 'Job incomplete';
-                      handleMoveJob(job, destination, note);
-                    }}
-                    className="w-full h-10"
-                  />
+                  {!wasJobReturnedToAdmin(job) && (
+                    <JobMoveSelect
+                      isMoving={movingJobId === job.id}
+                      onMove={(destination, note) => {
+                        handleMoveJob(job, destination, note);
+                      }}
+                      className="w-full h-10"
+                    />
+                  )}
                   {job.job_type === 'repair' && job.job_status === 'created' ? (
                     <div className="flex flex-col gap-2 w-full">
                       <Button 
@@ -491,7 +500,7 @@ export default function Jobs() {
                       </Button>
                       <Button 
                         size="sm" 
-                        onClick={() => handleCompleteJobFromList(job)}
+                        onClick={() => handleCompleteJob(job)}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-11 rounded-lg"
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
@@ -510,7 +519,7 @@ export default function Jobs() {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => handleCompleteJobFromList(job)}
+                        onClick={() => handleCompleteJob(job)}
                         disabled={completingJobId === job.id}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-11 rounded-lg"
                       >
@@ -551,14 +560,13 @@ export default function Jobs() {
             <tr>
               <th className="p-4 font-medium text-slate-700 text-left">Job Type</th>
               <th className="p-4 font-medium text-slate-700 text-left">Customer</th>
-              <th className="p-4 font-medium text-slate-700 text-left">Status</th>
               <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={4} className="py-12 text-slate-500 text-center">
+                <td colSpan={3} className="py-12 text-slate-500 text-center">
                   No jobs found
                 </td>
               </tr>
@@ -577,21 +585,16 @@ export default function Jobs() {
                     </div>
                   </td>
                   <td className="p-4">
-                    <Badge variant="outline" className={getStatusColor(job.job_status)}>
-                      {job.job_status === 'created' ? 'New' : job.job_status}
-                    </Badge>
-                  </td>
-                  <td className="p-4">
                     <div className="flex items-center space-x-2">
-                      <JobMoveSelect
-                        isMoving={movingJobId === job.id}
-                        onMove={(destination) => {
-                          const isCompleted = String(job.status || '').toLowerCase() === 'completed' || String(job.job_status || '').toLowerCase() === 'completed';
-                          const note = isCompleted ? 'Job done' : 'Job incomplete';
-                          handleMoveJob(job, destination, note);
-                        }}
-                        className="w-[140px] h-9"
-                      />
+                      {!wasJobReturnedToAdmin(job) && (
+                        <JobMoveSelect
+                          isMoving={movingJobId === job.id}
+                          onMove={(destination, note) => {
+                            handleMoveJob(job, destination, note);
+                          }}
+                          className="w-[140px] h-9"
+                        />
+                      )}
                       {job.job_type === 'repair' && job.job_status === 'created' ? (
                         <div className="flex flex-col gap-2 min-w-[140px]">
                           <Button 
@@ -606,7 +609,7 @@ export default function Jobs() {
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => handleCompleteJobFromList(job)}
+                            onClick={() => handleCompleteJob(job)}
                             className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             <CheckCircle className="w-4 h-4 mr-1" />
@@ -627,7 +630,7 @@ export default function Jobs() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleCompleteJobFromList(job)}
+                            onClick={() => handleCompleteJob(job)}
                             disabled={completingJobId === job.id}
                             className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white"
                           >
@@ -865,7 +868,7 @@ export default function Jobs() {
                   <CardTitle>New Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter(job => job.job_status === 'created' && !job.technician_phone)} />
+                  <JobTable jobs={userJobs.filter(job => job.job_status === 'created' && !job.technician_phone && !wasJobReturnedToAdmin(job))} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -889,13 +892,9 @@ export default function Jobs() {
                 <CardContent>
                   {(() => {
                     const filteredJobs = userJobs.filter(job => {
-                      // Filter for repair jobs
+                      if (wasJobReturnedToAdmin(job)) return false;
                       if (job.repair !== true) return false;
-                      
-                      // Tech admins can see all repair jobs
                       if (userInfo?.isTechAdmin) return true;
-                      
-                      // Regular technicians can only see their own repair jobs
                       return isAssignedToCurrentUser(job);
                     });
                     
@@ -920,7 +919,7 @@ export default function Jobs() {
                   <CardTitle>Completed Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter((job) => isJobMarkedCompleted(job))} />
+                  <JobTable jobs={userJobs.filter((job) => isJobMarkedCompleted(job) && !wasJobReturnedToAdmin(job))} />
                 </CardContent>
               </Card>
             </TabsContent>

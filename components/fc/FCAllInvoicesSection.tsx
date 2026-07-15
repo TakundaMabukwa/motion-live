@@ -138,6 +138,9 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [sourceFilter, setSourceFilter] = useState<"all" | "annuity" | "job_card" | "credit_note">("all");
   const [userRole, setUserRole] = useState<string>("");
+  const [invoiceLookupValue, setInvoiceLookupValue] = useState("");
+  const [invoiceLookupLoading, setInvoiceLookupLoading] = useState(false);
+  const [invoiceLookupResults, setInvoiceLookupResults] = useState<InvoiceRow[] | null>(null);
 
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
   const [creditNoteInvoice, setCreditNoteInvoice] = useState<InvoiceRow | null>(null);
@@ -320,13 +323,14 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   }, [invoices, searchTerm, sourceFilter]);
 
   const sortedInvoices = useMemo(() => {
-    const sorted = [...filteredInvoices].sort((a, b) => {
+    const source = invoiceLookupResults !== null ? invoiceLookupResults : filteredInvoices;
+    const sorted = [...source].sort((a, b) => {
       const aVal = String(sortField === "invoice_number" ? a.invoice_number : a.company_name || "").trim().toLowerCase();
       const bVal = String(sortField === "invoice_number" ? b.invoice_number : b.company_name || "").trim().toLowerCase();
       return sortDir === "desc" ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
     });
     return sorted;
-  }, [filteredInvoices, sortField, sortDir]);
+  }, [filteredInvoices, invoiceLookupResults, sortField, sortDir]);
 
   const invoiceRows = useMemo(() => filteredInvoices.filter((inv) => inv.source_type !== "credit_note"), [filteredInvoices]);
   const creditNoteRows = useMemo(() => filteredInvoices.filter((inv) => inv.source_type === "credit_note"), [filteredInvoices]);
@@ -343,6 +347,60 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
 
   const handleRefresh = async () => {
     await fetchInvoices(searchTerm, selectedMonth);
+  };
+
+  const handleInvoiceLookup = async () => {
+    const q = invoiceLookupValue.trim();
+    if (!q) {
+      setInvoiceLookupResults(null);
+      return;
+    }
+    setInvoiceLookupLoading(true);
+    try {
+      const res = await fetch(`/api/accounts/invoices/lookup?invoice_number=${encodeURIComponent(q)}`, { cache: "no-store" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to search invoice");
+      }
+      const data = await res.json();
+      const rows: InvoiceRow[] = (Array.isArray(data?.invoices) ? data.invoices : []).map((r: Record<string, unknown>) => ({
+        id: String(r.id || ""),
+        account_number: String(r.account_number || "").trim(),
+        billing_month: r.billing_month || null,
+        invoice_number: r.invoice_number || null,
+        invoice_date: r.invoice_date || null,
+        total_amount: Number(r.total_amount || 0),
+        paid_amount: Number(r.paid_amount || 0),
+        balance_due: Number(r.balance_due || 0),
+        payment_status: r.payment_status || null,
+        company_name: r.company_name || null,
+        customer_vat_number: r.customer_vat_number || null,
+        company_registration_number: r.company_registration_number || null,
+        client_address: r.client_address || null,
+        notes: r.notes || null,
+        line_items: Array.isArray(r.line_items) ? r.line_items : [],
+        created_at: r.created_at || null,
+        created_by: r.created_by || null,
+        source_type: r.source_type || null,
+        order_number: r.order_number || null,
+        job_card_id: r.job_card_id || null,
+        job_number: r.job_number || null,
+        created_by_name: r.created_by_name || null,
+        decline_reason: r.decline_reason || null,
+        approved: r.approved ?? null,
+        created_by_email: r.created_by_email || null,
+        invoice_credited: r.invoice_credited || null,
+      }));
+      setInvoiceLookupResults(rows);
+      if (rows.length === 0) {
+        toast.info(`No invoice found matching "${q}"`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to search invoice");
+      setInvoiceLookupResults([]);
+    } finally {
+      setInvoiceLookupLoading(false);
+    }
   };
 
   const openCreditNoteModal = (invoice: InvoiceRow) => {
@@ -939,6 +997,59 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
         >
           {sortDir === "asc" ? "↑ A-Z" : "↓ Z-A"}
         </button>
+        <div className="relative flex items-center">
+          <Search className="top-1/2 left-2 absolute w-3.5 h-3.5 text-gray-400 -translate-y-1/2 transform" />
+          <Input
+            type="text"
+            placeholder="Search invoice #"
+            value={invoiceLookupValue}
+            onChange={(e) => setInvoiceLookupValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleInvoiceLookup();
+            }}
+            className="h-8 w-44 pl-7 pr-7 text-xs"
+          />
+          {invoiceLookupValue && (
+            <button
+              type="button"
+              onClick={() => {
+                setInvoiceLookupValue("");
+                setInvoiceLookupResults(null);
+              }}
+              className="top-1/2 right-8 absolute text-gray-400 -translate-y-1/2 hover:text-gray-600"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={handleInvoiceLookup}
+            disabled={invoiceLookupLoading || !invoiceLookupValue.trim()}
+            className="h-8 px-2"
+          >
+            {invoiceLookupLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Search className="w-3.5 h-3.5" />
+            )}
+          </Button>
+        </div>
+        {invoiceLookupResults !== null && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setInvoiceLookupValue("");
+              setInvoiceLookupResults(null);
+            }}
+            className="h-8 text-xs"
+          >
+            Clear Search
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-4 text-xs">

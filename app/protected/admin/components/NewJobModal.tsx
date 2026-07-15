@@ -24,6 +24,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface NewJobModalProps {
   isOpen: boolean;
@@ -106,6 +107,22 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
   const [vehicleYear, setVehicleYear] = useState('');
   const [lookingUpAccount, setLookingUpAccount] = useState(false);
 
+  // Customer search from cost_centers
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState<Array<{
+    id: string;
+    company: string;
+    legal_name: string;
+    cost_code: string;
+    contact_name: string;
+    email: string;
+    physical_address_1: string;
+    physical_area: string;
+    physical_code: string;
+  }>>([]);
+  const [searchingCustomers, setSearchingCustomers] = useState(false);
+  const [assignTechOnCreate, setAssignTechOnCreate] = useState(false);
+
   // Step 2: Products
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
@@ -166,6 +183,9 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
       setCreatedJobId(null);
       setCreatedJobNumber(null);
       setIsSubmitting(false);
+      setCustomerSearch('');
+      setCustomerSearchResults([]);
+      setAssignTechOnCreate(false);
     }
   }, [isOpen]);
 
@@ -187,6 +207,14 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
       setJobSubType(subTypes[0].value);
     }
   }, [jobType, jobSubType]);
+
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current);
+    };
+  }, []);
 
   // Fetch products
   const fetchProducts = useCallback(async () => {
@@ -251,6 +279,47 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
     } finally {
       setLookingUpAccount(false);
     }
+  };
+
+  // Search customers from cost_centers by company name
+  const searchCustomers = async (query: string) => {
+    if (!query || query.length < 2) {
+      setCustomerSearchResults([]);
+      return;
+    }
+    setSearchingCustomers(true);
+    try {
+      const res = await fetch(`/api/cost-centers/search?q=${encodeURIComponent(query)}`);
+      if (!res.ok) throw new Error('Search failed');
+      const data = await res.json();
+      setCustomerSearchResults(data.results || []);
+    } catch {
+      setCustomerSearchResults([]);
+    } finally {
+      setSearchingCustomers(false);
+    }
+  };
+
+  // Debounced customer search
+  const customerSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleCustomerSearch = (value: string) => {
+    setCustomerSearch(value);
+    if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current);
+    customerSearchTimerRef.current = setTimeout(() => {
+      searchCustomers(value);
+    }, 300);
+  };
+
+  // Select customer from search results
+  const selectCustomer = (customer: typeof customerSearchResults[0]) => {
+    setCustomerName(customer.company || customer.legal_name || '');
+    setContactPerson(customer.contact_name || '');
+    setCustomerEmail(customer.email || '');
+    setCustomerAddress([customer.physical_address_1, customer.physical_area, customer.physical_code].filter(Boolean).join(', '));
+    setAccountNumber(customer.cost_code || '');
+    setCustomerSearch('');
+    setCustomerSearchResults([]);
+    toast.success('Customer details auto-filled');
   };
 
   // Product selection (matches FC's addProduct)
@@ -423,6 +492,7 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
         quotationSubtotal: 0,
         quotationVatAmount: 0,
         quotationTotalAmount: 0,
+        emailRecipients: [],
       };
 
       const quoteRes = await fetch('/api/client-quotes', {
@@ -437,8 +507,15 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
 
       setCreatedJobId(jobId);
       setCreatedJobNumber(jobNumber || null);
-      setCurrentStep(4);
-      toast.success(`Job ${jobNumber || ''} created successfully`);
+      
+      if (assignTechOnCreate) {
+        setCurrentStep(4);
+        toast.success(`Job ${jobNumber || ''} created successfully`);
+      } else {
+        toast.success(`Job ${jobNumber || ''} created successfully`);
+        onJobCreated();
+        onClose();
+      }
     } catch (error) {
       toast.error(`Failed to create job: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
@@ -462,6 +539,7 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
     try {
       const selectedTechs = technicians.filter((t) => selectedTechnicianIds.includes(t.id));
       const technicianNames = selectedTechs.map((t) => t.name).join(', ');
+      const technicianEmails = selectedTechs.map((t) => t.email).join(', ');
 
       const res = await fetch('/api/admin/jobs/assign-technician', {
         method: 'PUT',
@@ -469,10 +547,10 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
         body: JSON.stringify({
           jobId: createdJobId,
           technicianName: technicianNames,
+          technicianEmail: technicianEmails,
           jobDate: assignmentDate,
           startTime: assignmentTime || null,
           endTime: null,
-          assignmentNotes: assignmentNotes || null,
         }),
       });
 
@@ -487,6 +565,7 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
             body: JSON.stringify({
               jobId: createdJobId,
               technicianName: technicianNames,
+              technicianEmail: technicianEmails,
               jobDate: assignmentDate,
               startTime: assignmentTime || null,
               endTime: null,
@@ -701,7 +780,46 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="accountNumber">Account Number</Label>
+                    <Label htmlFor="customerSearch">Search Customer by Name</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="customerSearch"
+                        value={customerSearch}
+                        onChange={(e) => handleCustomerSearch(e.target.value)}
+                        placeholder="Search by company name..."
+                        className="pl-10"
+                      />
+                      {searchingCustomers && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+                      )}
+                    </div>
+                    {customerSearchResults.length > 0 && (
+                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50 relative">
+                        {customerSearchResults.map((customer) => (
+                          <div
+                            key={customer.id}
+                            className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+                            onClick={() => selectCustomer(customer)}
+                          >
+                            <div className="font-medium text-sm text-gray-900">{customer.company || customer.legal_name}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {customer.cost_code && <span>Code: {customer.cost_code}</span>}
+                              {customer.contact_name && <span className="ml-2">Contact: {customer.contact_name}</span>}
+                            </div>
+                            {customer.physical_address_1 && (
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {[customer.physical_address_1, customer.physical_area, customer.physical_code].filter(Boolean).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountNumber">Account Number (Optional)</Label>
                     <div className="flex gap-2">
                       <Input
                         id="accountNumber"
@@ -1008,6 +1126,17 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
                     Create Job
                   </Button>
                 </div>
+
+                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Checkbox
+                    id="assignTechOnCreate"
+                    checked={assignTechOnCreate}
+                    onCheckedChange={(checked) => setAssignTechOnCreate(checked === true)}
+                  />
+                  <label htmlFor="assignTechOnCreate" className="text-sm text-blue-800 cursor-pointer">
+                    Assign technician after job creation
+                  </label>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -1093,16 +1222,6 @@ export default function NewJobModal({ isOpen, onClose, onJobCreated }: NewJobMod
                       onChange={(e) => setAssignmentTime(e.target.value)}
                     />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Notes (Optional)</Label>
-                  <Textarea
-                    value={assignmentNotes}
-                    onChange={(e) => setAssignmentNotes(e.target.value)}
-                    placeholder="Assignment notes..."
-                    rows={2}
-                  />
                 </div>
 
                 <div className="flex gap-3">

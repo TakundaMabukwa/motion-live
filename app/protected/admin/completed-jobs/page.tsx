@@ -247,8 +247,8 @@ function JobInfoSection({
             <Label className="block text-sm font-medium text-gray-700 mb-1">Job Number</Label>
             <Input
               value={formData.job_number || ""}
-              onChange={(e) => setFormData({ ...formData, job_number: e.target.value })}
-              className="font-mono text-lg font-bold"
+              readOnly
+              className="font-mono text-lg font-bold bg-gray-100 cursor-not-allowed"
             />
           </div>
           <div>
@@ -271,72 +271,6 @@ function JobInfoSection({
           value={formData.job_description || ""}
           onChange={(e) => setFormData({ ...formData, job_description: e.target.value })}
         />
-      </div>
-      <div className="mt-3 grid gap-4 sm:grid-cols-6">
-        <div className="sm:col-span-2">
-          <Label className="block text-sm font-medium text-gray-700 mb-1">Job Date</Label>
-          <Input
-            type="date"
-            value={formData.job_date || ""}
-            onChange={(e) => setFormData({ ...formData, job_date: e.target.value })}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label className="block text-sm font-medium text-gray-700 mb-1">Due Date</Label>
-          <Input
-            type="date"
-            value={formData.due_date || ""}
-            onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-          />
-        </div>
-        <div className="sm:col-span-1">
-          <Label className="block text-sm font-medium text-gray-700 mb-1">Start Time</Label>
-          <Input
-            type="time"
-            value={formData.start_time || ""}
-            onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-          />
-        </div>
-        <div className="sm:col-span-1">
-          <Label className="block text-sm font-medium text-gray-700 mb-1">End Time</Label>
-          <Input
-            type="time"
-            value={formData.end_time || ""}
-            onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-          />
-        </div>
-      </div>
-      <div className="mt-3 grid gap-4 sm:grid-cols-4">
-        <div>
-          <Label className="block text-sm font-medium text-gray-700 mb-1">Est. Duration (hrs)</Label>
-          <Input
-            type="number"
-            step="0.5"
-            value={formData.estimated_duration_hours || ""}
-            onChange={(e) => setFormData({ ...formData, estimated_duration_hours: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label className="block text-sm font-medium text-gray-700 mb-1">Actual Duration (hrs)</Label>
-          <Input
-            type="number"
-            step="0.5"
-            value={formData.actual_duration_hours || ""}
-            onChange={(e) => setFormData({ ...formData, actual_duration_hours: e.target.value })}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label className="block text-sm font-medium text-gray-700 mb-1">Repair Job</Label>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={formData.repair || false}
-              disabled
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-600">{formData.repair ? "Yes" : "No"}</span>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1315,10 +1249,6 @@ function JobDetailDialog({
       setScreenshots(parsedScreenshots);
       setFormData({
         job_number: job.job_number,
-        job_date: job.job_date ? job.job_date.split("T")[0] : "",
-        due_date: job.due_date ? job.due_date.split("T")[0] : "",
-        start_time: job.start_time ? job.start_time.split("T")[1]?.substring(0, 5) : "",
-        end_time: job.end_time ? job.end_time.split("T")[1]?.substring(0, 5) : "",
         status: job.status || "pending",
         job_type: job.job_type || "install",
         job_description: job.job_description || "",
@@ -1335,13 +1265,10 @@ function JobDetailDialog({
         vin_number: job.vin_number || "",
         technician_name: job.technician_name || "",
         technician_phone: job.technician_phone || "",
-        estimated_duration_hours: job.estimated_duration_hours || "",
-        actual_duration_hours: job.actual_duration_hours || "",
         work_notes: job.work_notes || "",
         completion_notes: job.completion_notes || "",
         special_instructions: job.special_instructions || "",
         admin_notes: job.admin_notes || "",
-        repair: job.repair || false,
       });
     }
   }, [job, open]);
@@ -1422,13 +1349,10 @@ function JobDetailDialog({
     vin_number: "vin_numer",
     technician_name: "technician_name",
     technician_phone: "technician_phone",
-    estimated_duration_hours: "estimated_duration_hours",
-    actual_duration_hours: "actual_duration_hours",
     work_notes: "work_notes",
     completion_notes: "completion_notes",
     special_instructions: "special_instructions",
     admin_notes: "admin_notes",
-    repair: "repair",
   };
 
   const payload: Record<string, any> = {};
@@ -1438,14 +1362,8 @@ function JobDetailDialog({
     }
   }
   payload.screenshots = screenshots;
-  delete payload.parts_required;
-  delete payload.equipment_used;
-  delete payload.job_date;
-  delete payload.due_date;
-  delete payload.start_time;
-  delete payload.end_time;
 
-  for (const key of ["estimated_duration_hours", "actual_duration_hours", "vehicle_year"]) {
+  for (const key of ["vehicle_year"]) {
     if (key in payload) {
       const val = payload[key];
       if (val === "" || val === null || val === undefined || !Number.isFinite(Number(val))) {

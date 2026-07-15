@@ -52,6 +52,8 @@ export type CompleteTechJobOptions = {
   completion_notes?: string | null;
   after_photos?: string[];
   before_photos?: string[];
+  user_id?: string | null;
+  user_email?: string | null;
 };
 
 export async function completeTechJobCard(
@@ -109,6 +111,19 @@ export async function completeTechJobCard(
   if (options.completion_notes !== undefined) {
     completionPayload.completion_notes = options.completion_notes;
   }
+
+  const existingHistory = Array.isArray(workingJob.move_history) ? workingJob.move_history : [];
+  completionPayload.move_history = [
+    ...existingHistory,
+    {
+      moved_by: options.user_id || null,
+      user_email: options.user_email || null,
+      from_role: workingJob.role || null,
+      to_role: "admin",
+      moved_at: new Date().toISOString(),
+      note: options.completion_notes || "Job done",
+    },
+  ];
 
   const isStoredPhotoUrl = (value: string) =>
     /^https?:\/\//i.test(value) || value.startsWith("/");

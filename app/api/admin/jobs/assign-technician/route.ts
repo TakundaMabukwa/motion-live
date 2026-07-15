@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { appendAssignedPartsToTechnicianStock } from '@/lib/server/tech-stock-assignment';
+import { sendTechnicianAssignmentEmail } from '@/lib/notification-email';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_ONLY_RE = /^\d{2}:\d{2}$/;
@@ -248,13 +249,14 @@ export async function PUT(request: NextRequest) {
     // Get job parts before updating
     const { data: jobData } = await supabase
       .from('job_cards')
-      .select('parts_required, role, move_to, job_type')
+      .select('parts_required, role, move_to, job_type, technician_name')
       .eq('id', jobId)
       .single();
     
     console.log(`[JOB ASSIGNMENT] Job ${jobId} data:`, jobData);
     const normalizedJobType = String(jobData?.job_type || '').trim().toLowerCase();
     const hasRole = String(jobData?.role || '').trim().length > 0;
+    const isReassignment = Boolean(jobData?.technician_name);
     const routingUpdate =
       normalizedJobType === 'admin_created'
         ? {
@@ -293,6 +295,46 @@ export async function PUT(request: NextRequest) {
         error: 'Failed to assign technician',
         details: error.message 
       }, { status: 500 });
+    }
+
+    // Send assignment email to technician(s)
+    const jobDetails = data;
+    const emailResult = await sendTechnicianAssignmentEmail({
+      technicianName,
+      technicianEmails: resolvedEmails,
+      jobNumber: jobDetails.job_number || jobId,
+      jobType: jobDetails.job_type || '',
+      jobSubType: jobDetails.job_sub_type || '',
+      jobDescription: jobDetails.job_description || '',
+      priority: jobDetails.priority || '',
+      orderNumber: jobDetails.order_number || '',
+      customerName: jobDetails.customer_name || '',
+      contactPerson: jobDetails.contact_person || '',
+      customerPhone: jobDetails.customer_phone || '',
+      customerEmail: jobDetails.customer_email || '',
+      customerAddress: jobDetails.customer_address || '',
+      vehicleRegistration: jobDetails.vehicle_registration || '',
+      vehicleMake: jobDetails.vehicle_make || '',
+      vehicleModel: jobDetails.vehicle_model || '',
+      vehicleYear: jobDetails.vehicle_year || '',
+      vehicleColour: jobDetails.vehicle_colour || '',
+      vinNumber: jobDetails.vin_numer || jobDetails.vehicle_chassis || '',
+      odometer: jobDetails.odormeter || '',
+      jobDate: jobDetails.job_date || datePart,
+      startTime: jobDetails.start_time || startDateTime,
+      endTime: jobDetails.end_time || endDateTime,
+      jobLocation: jobDetails.job_location || '',
+      dueDate: jobDetails.due_date || '',
+      estimatedDuration: jobDetails.estimated_duration_hours || '',
+      purchaseType: jobDetails.purchase_type || '',
+      isReassignment,
+      quotationProducts: Array.isArray(jobDetails.quotation_products) ? jobDetails.quotation_products : [],
+      partsRequired: Array.isArray(jobDetails.parts_required) ? jobDetails.parts_required : [],
+    });
+    if (emailResult.success) {
+      console.log(`[JOB ASSIGNMENT] Email sent to technician(s): ${resolvedEmails.join(', ')}`);
+    } else {
+      console.error('[JOB ASSIGNMENT] Failed to send assignment email:', emailResult.error);
     }
 
     // Add parts to technician stock if parts are required

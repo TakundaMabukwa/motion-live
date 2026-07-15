@@ -245,29 +245,20 @@ export async function POST(
               : {}),
           };
 
-      const patchUrl = `${new URL(request.url).origin}/api/job-cards/${id}`;
-      const patchResponse = await fetch(patchUrl, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: request.headers.get("Authorization") || "",
-          Cookie: request.headers.get("Cookie") || "",
-        },
-        body: JSON.stringify(completionPayload),
-      });
+      const { data: directJob, error: directError } = await supabase
+        .from("job_cards")
+        .update(completionPayload)
+        .eq("id", id)
+        .select()
+        .single();
 
-      const patchBody = await patchResponse.json().catch(() => ({}));
-
-      if (!patchResponse.ok) {
+      if (directError) {
         return NextResponse.json(
           {
-            error:
-              targetRole === "accounts"
-                ? "Failed to complete and move job to Accounts"
-                : `Failed to move job to ${targetRole.toUpperCase()}`,
-            details: patchBody?.error || patchBody?.details || "Unknown error",
+            error: `Failed to move job to ${targetRole.toUpperCase()}`,
+            details: directError.message,
           },
-          { status: patchResponse.status },
+          { status: 500 },
         );
       }
 
@@ -278,10 +269,12 @@ export async function POST(
             ? "Job moved to Accounts and marked as completed"
             : shouldPreserveCompletedForFc
               ? "Job moved to FC and kept in completed review queue"
-            : `Job moved to ${targetRole.toUpperCase()} escalation queue`,
-        job: patchBody,
+            : `Job moved to ${targetRole.toUpperCase()}`,
+        job: directJob,
       });
     }
+
+    const isJobDone = trimmedNote.toLowerCase() === 'job done';
 
     const { data, error } = await supabase
       .from("job_cards")
@@ -290,6 +283,7 @@ export async function POST(
         move_to: targetRole,
         move_to_role: null,
         move_history: updatedHistory,
+        ...(isJobDone ? { status: 'completed', job_status: 'completed' } : {}),
         ...escalationPayload,
       })
       .eq("id", id)

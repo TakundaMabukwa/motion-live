@@ -738,298 +738,114 @@ function DayView({
   onJobClick: (job: Job) => void;
   selectedDate: string;
 }) {
-  const START_HOUR = 6;
-  const END_HOUR = 18;
-  const HOUR_HEIGHT = 80; // px per hour
+  const todayKey = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  })();
 
-  const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+  const isToday = selectedDate === todayKey;
 
-  const getJobPosition = (job: Job) => {
-    if (!job.start_time) return null;
-    const startStr = String(job.start_time);
-    const startMatch = startStr.match(/(\d{2}):(\d{2})/);
-    if (!startMatch) return null;
+  // Group jobs by technician
+  const jobsByTech = technicians.map((tech) => ({
+    tech,
+    jobs: jobs.filter(
+      (j) =>
+        j.technician_name === tech.name ||
+        j.technician_phone?.toLowerCase() === tech.email?.toLowerCase()
+    ),
+  }));
 
-    const startHour = parseInt(startMatch[1], 10);
-    const startMin = parseInt(startMatch[2], 10);
-
-    let endHour = startHour + 1;
-    let endMin = startMin;
-    if (job.end_time) {
-      const endMatch = String(job.end_time).match(/(\d{2}):(\d{2})/);
-      if (endMatch) {
-        endHour = parseInt(endMatch[1], 10);
-        endMin = parseInt(endMatch[2], 10);
-      } else if (job.estimated_duration_hours) {
-        endHour = startHour + Math.ceil(job.estimated_duration_hours);
-      }
-    } else if (job.estimated_duration_hours) {
-      endHour = startHour + Math.ceil(job.estimated_duration_hours);
-    }
-
-    const topOffset = ((startHour - START_HOUR) * 60 + startMin) * (HOUR_HEIGHT / 60);
-    const durationMinutes = (endHour - startHour) * 60 + (endMin - startMin);
-    const height = Math.max(durationMinutes * (HOUR_HEIGHT / 60), 30);
-
-    return { top: topOffset, height };
-  };
-
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const nowOffset = ((nowMinutes - START_HOUR * 60) * HOUR_HEIGHT) / 60;
-  const showNowLine = nowOffset >= 0 && nowOffset <= (END_HOUR - START_HOUR) * HOUR_HEIGHT;
+  // Unassigned jobs
+  const unassignedJobs = jobs.filter((j) => {
+    const hasTech = technicians.some(
+      (t) =>
+        j.technician_name === t.name ||
+        j.technician_phone?.toLowerCase() === t.email?.toLowerCase()
+    );
+    return !hasTech;
+  });
 
   return (
     <Card className="bg-white/80 shadow-xl backdrop-blur-sm border-0">
-      <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 rounded-t-lg text-white">
+      <CardHeader className={`p-3 rounded-t-lg text-white ${isToday ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
         <CardTitle className="flex items-center justify-between text-lg">
           <span>
             {FULL_DAYS[currentDate.getDay()]}, {currentDate.toLocaleDateString("en-ZA", { month: "long", day: "numeric", year: "numeric" })}
           </span>
-          <span className="text-sm font-normal text-blue-100">
-            {technicians.length} Technicians
+          <span className="text-sm font-normal opacity-90">
+            {jobs.length} Job(s) · {technicians.length} Technicians
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-0 overflow-x-auto">
-        <div className="min-w-[700px]">
-          {/* Column headers - technician names */}
-          <div className="flex border-b border-gray-200 sticky top-0 bg-white z-10">
-            <div className="w-16 shrink-0 p-2 text-gray-500 text-xs font-medium text-center border-r border-gray-200">
-              Time
+      <CardContent className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {/* Technician columns */}
+          {jobsByTech.map(({ tech, jobs: techJobs }) => (
+            <div key={tech.id} className="border border-gray-200 rounded-lg overflow-hidden">
+              <div
+                className="px-3 py-2 border-b flex items-center gap-2"
+                style={{ backgroundColor: `${getColorHex(tech.color_code)}15` }}
+              >
+                <div
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: getColorHex(tech.color_code) }}
+                />
+                <span className="font-medium text-sm truncate">{tech.name}</span>
+                <span className="ml-auto text-xs text-gray-500">{techJobs.length}</span>
+              </div>
+              <div className="p-2 space-y-1.5 min-h-[80px] max-h-[300px] overflow-y-auto">
+                {techJobs.length === 0 ? (
+                  <p className="text-gray-400 text-xs text-center py-4">No jobs</p>
+                ) : (
+                  techJobs.map((job) => (
+                    <div
+                      key={job.id}
+                      className="p-2 border-l-3 rounded cursor-pointer hover:shadow-md transition-shadow"
+                      style={{
+                        backgroundColor: `${getColorHex(tech.color_code)}15`,
+                        borderLeftColor: getColorHex(tech.color_code),
+                        borderLeftWidth: 3,
+                      }}
+                      onClick={() => onJobClick(job)}
+                    >
+                      <div className="font-semibold text-sm truncate">{job.customer_name}</div>
+                      <div className="text-xs text-gray-500">
+                        {extractTimeClock(job.start_time)} - {extractTimeClock(job.end_time)}
+                      </div>
+                      <div className="text-xs text-gray-400 truncate">{job.job_type}</div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            {technicians.map((tech) => (
-              <div
-                key={tech.id}
-                className="flex-1 min-w-[130px] p-2 text-center border-r border-gray-100 last:border-r-0"
-              >
-                <div className="flex items-center justify-center gap-1.5">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: getColorHex(tech.color_code) }}
-                  />
-                  <span className="font-medium text-gray-700 text-xs truncate">
-                    {tech.name}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {/* Unassigned column */}
-            <div className="flex-1 min-w-[130px] p-2 text-center border-r border-gray-100">
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "#9CA3AF" }} />
-                <span className="font-medium text-gray-500 text-xs">Unassigned</span>
-              </div>
+          ))}
+
+          {/* Unassigned column */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="px-3 py-2 border-b bg-gray-100 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full shrink-0 bg-gray-400" />
+              <span className="font-medium text-sm truncate text-gray-600">Unassigned</span>
+              <span className="ml-auto text-xs text-gray-500">{unassignedJobs.length}</span>
             </div>
-          </div>
-
-          {/* Time grid */}
-          <div className="relative" style={{ height: (END_HOUR - START_HOUR + 1) * HOUR_HEIGHT }}>
-            {/* Hour lines */}
-            {hours.map((hour, i) => (
-              <div
-                key={hour}
-                className="absolute w-full border-t border-gray-100"
-                style={{ top: i * HOUR_HEIGHT }}
-              >
-                <div className="w-16 shrink-0 absolute -left-0 -top-2.5 bg-white px-1 text-gray-400 text-[10px] text-right">
-                  {String(hour).padStart(2, "0")}:00
-                </div>
-              </div>
-            ))}
-
-            {/* Half-hour lines */}
-            {hours.map((hour, i) => (
-              <div
-                key={`half-${hour}`}
-                className="absolute w-full border-t border-gray-50 border-dashed"
-                style={{ top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
-              />
-            ))}
-
-            {/* Now line */}
-            {showNowLine && (
-              <div
-                className="absolute left-16 right-0 z-20 flex items-center"
-                style={{ top: nowOffset }}
-              >
-                <div className="bg-red-500 rounded-full w-2.5 h-2.5 -ml-1 shrink-0" />
-                <div className="flex-1 bg-red-500 h-px" />
-              </div>
-            )}
-
-            {/* Technician columns with jobs */}
-            <div className="absolute inset-0 flex" style={{ left: 64 }}>
-              {technicians.map((tech, techIdx) => {
-                const techJobs = jobs.filter((j) =>
-                  j.technician_name === tech.name ||
-                  j.technician_phone?.toLowerCase() === tech.email?.toLowerCase()
-                );
-                return (
+            <div className="p-2 space-y-1.5 min-h-[80px] max-h-[300px] overflow-y-auto">
+              {unassignedJobs.length === 0 ? (
+                <p className="text-gray-400 text-xs text-center py-4">No jobs</p>
+              ) : (
+                unassignedJobs.map((job) => (
                   <div
-                    key={tech.id}
-                    className="flex-1 min-w-[130px] relative border-r border-gray-100 last:border-r-0"
+                    key={job.id}
+                    className="p-2 border-l-3 rounded cursor-pointer hover:shadow-md transition-shadow border-l-gray-400 bg-gray-50"
+                    style={{ borderLeftWidth: 3 }}
+                    onClick={() => onJobClick(job)}
                   >
-                    {/* Column background stripes */}
-                    {hours.map((_, i) => (
-                      <div
-                        key={i}
-                        className="absolute w-full border-r border-gray-50"
-                        style={{ top: 0, bottom: 0, left: 0 }}
-                      />
-                    ))}
-
-                    {/* Jobs */}
-                    {(() => {
-                      const techJobs = jobs.filter((j) =>
-                        j.technician_name === tech.name ||
-                        j.technician_phone?.toLowerCase() === tech.email?.toLowerCase()
-                      );
-                      // Sort by start time
-                      techJobs.sort((a, b) => {
-                        const ta = a.start_time ? String(a.start_time).match(/(\d{2}):(\d{2})/) : null;
-                        const tb = b.start_time ? String(b.start_time).match(/(\d{2}):(\d{2})/) : null;
-                        if (!ta && !tb) return 0;
-                        if (!ta) return 1;
-                        if (!tb) return -1;
-                        const am = parseInt(ta[1], 10) * 60 + parseInt(ta[2], 10);
-                        const bm = parseInt(tb[1], 10) * 60 + parseInt(tb[2], 10);
-                        return am - bm;
-                      });
-                      // Compute column offsets for overlapping jobs
-                      const columns: { top: number; height: number; job: Job }[][] = [];
-                      techJobs.forEach((job) => {
-                        const pos = getJobPosition(job);
-                        if (!pos) return;
-                        let colIdx = 0;
-                        while (true) {
-                          const conflict = columns[colIdx]?.some((c) =>
-                            pos.top < c.top + c.height && pos.top + pos.height > c.top
-                          );
-                          if (!conflict) break;
-                          colIdx++;
-                        }
-                        if (!columns[colIdx]) columns[colIdx] = [];
-                        columns[colIdx].push({ ...pos, job });
-                      });
-                      return (
-                        <>
-                          {columns.map((col, colIdx) =>
-                            col.map((item) => {
-                              const jobColor = getColorHex(tech.color_code);
-                              return (
-                                <TooltipProvider key={item.job.id}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div
-                                        className="absolute left-0.5 right-0.5 border-l-3 rounded-md px-2 py-1 text-xs cursor-pointer hover:shadow-lg transition-shadow overflow-hidden z-10"
-                                        style={{
-                                          top: item.top,
-                                          height: item.height,
-                                          width: `${100 / Math.max(columns.length, 1)}%`,
-                                          left: `${(colIdx * 100) / Math.max(columns.length, 1)}%`,
-                                          backgroundColor: `${jobColor}18`,
-                                          borderLeftColor: jobColor,
-                                          borderLeftWidth: 3,
-                                        }}
-                                        onClick={() => onJobClick(item.job)}
-                                      >
-                                      <div className="font-semibold text-gray-900 truncate text-[11px]">
-                                        {item.job.customer_name}
-                                      </div>
-                                      {item.height > 30 && (
-                                        <div className="text-gray-500 text-[10px]">
-                                          {extractTimeClock(item.job.start_time)} - {extractTimeClock(item.job.end_time)}
-                                        </div>
-                                      )}
-                                      {item.height > 50 && (
-                                        <div className="text-gray-400 text-[10px] truncate">
-                                          {item.job.job_type}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <div className="space-y-1">
-                                      <p className="font-medium">{item.job.customer_name}</p>
-                                      <p className="text-sm">{extractTimeClock(item.job.start_time)} - {extractTimeClock(item.job.end_time)}</p>
-                                      <p className="text-sm">Type: {item.job.job_type}</p>
-                                      {item.job.priority && <p className="text-sm">Priority: {item.job.priority}</p>}
-                                      {item.job.vehicle_registration && <p className="text-sm">Vehicle: {item.job.vehicle_registration}</p>}
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-</TooltipProvider>
-                            )
-                          })
-                        )}
-                      </>
-                      );
-                    })()}
+                    <div className="font-semibold text-sm truncate">{job.customer_name}</div>
+                    <div className="text-xs text-gray-500">
+                      {extractTimeClock(job.start_time)} - {extractTimeClock(job.end_time)}
+                    </div>
+                    <div className="text-xs text-gray-400 truncate">{job.job_type}</div>
                   </div>
-                );
-              })}
-              {/* Unassigned column */}
-              <div className="flex-1 min-w-[130px] relative">
-                {hours.map((_, i) => (
-                  <div
-                    key={i}
-                    className="absolute w-full border-r border-gray-50"
-                    style={{ top: 0, bottom: 0, left: 0 }}
-                  />
-                ))}
-                {jobs
-                  .filter((j) => {
-                    const hasTech = technicians.some(
-                      (t) =>
-                        j.technician_name === t.name ||
-                        j.technician_phone?.toLowerCase() === t.email?.toLowerCase()
-                    );
-                    return !hasTech;
-                  })
-                  .map((job) => {
-                    const pos = getJobPosition(job);
-                    if (!pos) return null;
-                    return (
-                      <TooltipProvider key={job.id}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="absolute left-0.5 right-0.5 border-l-3 rounded-md px-2 py-1 text-xs cursor-pointer hover:shadow-lg transition-shadow overflow-hidden z-10"
-                              style={{
-                                top: pos.top,
-                                height: pos.height,
-                                backgroundColor: `#E5E7EB18`,
-                                borderLeftColor: `#9CA3AF`,
-                                borderLeftWidth: 3,
-                              }}
-                              onClick={() => onJobClick(job)}
-                            >
-                              <div className="font-semibold text-gray-900 truncate text-[11px]">
-                                {job.customer_name}
-                              </div>
-                              <div className="text-gray-500 text-[10px]">
-                                {extractTimeClock(job.start_time)} - {extractTimeClock(job.end_time)}
-                              </div>
-                              <div className="text-gray-400 text-[10px] truncate">
-                                {job.technician_name || job.technician_phone || "—"}
-                              </div>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <div className="space-y-1">
-                              <p className="font-medium">{job.customer_name}</p>
-                              <p className="text-sm">{extractTimeClock(job.start_time)} - {extractTimeClock(job.end_time)}</p>
-                              <p className="text-sm">Type: {job.job_type}</p>
-                              {job.priority && <p className="text-sm">Priority: {job.priority}</p>}
-                              {job.vehicle_registration && <p className="text-sm">Vehicle: {job.vehicle_registration}</p>}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    );
-                  })}
-              </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1072,71 +888,53 @@ function WeekView({
   return (
     <Card className="bg-white/80 shadow-xl backdrop-blur-sm border-0">
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b">
-                <th className="w-20 p-2 font-medium text-gray-500 text-left">Tech</th>
-                {weekDays.map((day) => (
-                  <th
-                    key={day.key}
-                    className={`p-2 font-medium text-center min-w-[120px] cursor-pointer transition-colors ${
-                      day.key === selectedDate
-                        ? "bg-blue-100 text-blue-700"
-                        : day.key === todayKey
-                        ? "bg-yellow-50 text-yellow-700"
-                        : "hover:bg-gray-100"
-                    }`}
-                    onClick={() => onSelectDate(day.key)}
-                  >
-                    <div className="text-xs text-gray-500">{day.dayName}</div>
-                    <div className="text-lg">{day.dayNum}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {technicians.map((tech) => (
-                <tr key={tech.id} className="border-b border-gray-100">
-                  <td className="p-2 align-top">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getColorHex(tech.color_code) }} />
-                      <span className="font-medium text-xs truncate">{tech.name}</span>
+        <div className="grid grid-cols-7 bg-gray-50 border-b">
+          {DAYS.map((day) => (
+            <div key={day} className="p-2 font-medium text-gray-500 text-sm text-center">{day}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 border border-gray-200 rounded-b-lg overflow-hidden">
+          {weekDays.map((day) => {
+            const events = jobsByDate[day.key] || [];
+            const isSelected = day.key === selectedDate;
+            const isToday = day.key === todayKey;
+
+            return (
+              <div
+                key={day.key}
+                className={`min-h-[120px] p-1.5 border border-gray-100 cursor-pointer transition-colors
+                  ${isSelected ? "bg-blue-100 border-blue-300" : ""}
+                  ${isToday ? "bg-yellow-50 border-yellow-200" : ""}
+                  hover:bg-blue-50
+                `}
+                onClick={() => onSelectDate(day.key)}
+              >
+                <div className={`mb-1 font-medium text-sm ${isToday ? "text-blue-600 font-bold" : "text-gray-900"}`}>
+                  {day.dayNum}
+                  {isToday && <span className="bg-blue-100 ml-1 px-1 py-0.5 rounded-full text-blue-600 text-[10px]">Today</span>}
+                </div>
+                <div className="space-y-0.5">
+                  {events.slice(0, 4).map((event, i) => (
+                    <div
+                      key={i}
+                      className="p-1 border-l-2 rounded text-[10px] cursor-pointer hover:shadow-sm truncate"
+                      style={{
+                        backgroundColor: `${getColorHex(event.technician_color)}15`,
+                        borderLeftColor: getColorHex(event.technician_color),
+                      }}
+                      onClick={(e) => { e.stopPropagation(); onJobClick(event); }}
+                    >
+                      <div className="font-semibold truncate">{event.customer_name}</div>
+                      <div className="text-gray-500 text-[9px]">{extractTimeClock(event.start_time)}</div>
                     </div>
-                  </td>
-                  {weekDays.map((day) => {
-                    const dayJobs = (jobsByDate[day.key] || []).filter(
-                      (j) => j.technician_name === tech.name ||
-                        j.technician_phone?.toLowerCase() === tech.email?.toLowerCase()
-                    );
-                    return (
-                      <td
-                        key={day.key}
-                        className={`p-1 border-l border-gray-100 align-top min-h-[80px] ${
-                          day.key === selectedDate ? "bg-blue-50/50" : ""
-                        }`}
-                      >
-                        {dayJobs.map((job) => (
-                          <div
-                            key={job.id}
-                            className="mb-1 p-1.5 border-l-2 rounded text-xs cursor-pointer hover:shadow-md transition-shadow"
-                            style={{
-                              backgroundColor: `${getColorHex(tech.color_code)}15`,
-                              borderLeftColor: getColorHex(tech.color_code),
-                            }}
-                            onClick={() => onJobClick(job)}
-                          >
-                            <div className="font-semibold truncate">{job.customer_name}</div>
-                            <div className="opacity-75 text-[10px]">{extractTimeClock(job.start_time)}</div>
-                          </div>
-                        ))}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                  {events.length > 4 && (
+                    <div className="text-[10px] text-gray-500 pl-1">+{events.length - 4} more</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>

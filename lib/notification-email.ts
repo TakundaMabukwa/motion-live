@@ -407,3 +407,386 @@ export async function sendInvoiceEmail(invoiceData: {
     senderEmail: process.env.EMAIL_FROM
   });
 }
+
+export async function sendTechnicianAssignmentEmail(assignmentData: {
+  technicianName: string;
+  technicianEmails: string[];
+  jobNumber: string;
+  jobType: string;
+  jobSubType?: string;
+  jobDescription?: string;
+  priority?: string;
+  orderNumber?: string;
+  customerName?: string;
+  contactPerson?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerAddress?: string;
+  vehicleRegistration?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleYear?: string;
+  vehicleColour?: string;
+  vinNumber?: string;
+  odometer?: string;
+  jobDate?: string;
+  startTime?: string;
+  endTime?: string;
+  jobLocation?: string;
+  dueDate?: string;
+  estimatedDuration?: string;
+  purchaseType?: string;
+  isReassignment?: boolean;
+  quotationProducts?: Array<{
+    name?: string;
+    description?: string;
+    quantity?: number;
+    type?: string;
+    category?: string;
+  }>;
+  partsRequired?: Array<{
+    description?: string;
+    code?: string;
+    quantity?: number;
+    serial_number?: string;
+    ip_address?: string;
+  }>;
+}) {
+  const {
+    technicianName,
+    technicianEmails,
+    jobNumber,
+    jobType,
+    jobSubType,
+    jobDescription,
+    priority,
+    orderNumber,
+    customerName,
+    contactPerson,
+    customerPhone,
+    customerEmail,
+    customerAddress,
+    vehicleRegistration,
+    vehicleMake,
+    vehicleModel,
+    vehicleYear,
+    vehicleColour,
+    vinNumber,
+    odometer,
+    jobDate,
+    startTime,
+    endTime,
+    jobLocation,
+    dueDate,
+    estimatedDuration,
+    purchaseType,
+    isReassignment,
+    quotationProducts,
+    partsRequired,
+  } = assignmentData;
+
+  const escapeHtml = (str: string) =>
+    str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
+  const formattedDate = jobDate
+    ? new Date(jobDate).toLocaleDateString('en-ZA', { day: '2-digit', month: 'long', year: 'numeric' })
+    : 'Not set';
+
+  const extractTime = (val: unknown): string => {
+    if (!val) return 'Not set';
+    const match = String(val).match(/(\d{2}):(\d{2})/);
+    return match ? `${match[1]}:${match[2]}` : 'Not set';
+  };
+
+  const formattedTime = extractTime(startTime);
+
+  const formattedDueDate = dueDate
+    ? new Date(dueDate).toLocaleDateString('en-ZA', { day: '2-digit', month: 'long', year: 'numeric' })
+    : 'Not set';
+
+  const jobTypeDisplay = jobType === 'installation' ? 'Installation' : jobType === 'de_installation' || jobType === 'de-installation' ? 'De-Installation' : jobType === 'repair' ? 'Repair' : jobType || 'N/A';
+
+  const priorityColor = priority === 'high' ? '#ef4444' : priority === 'medium' ? '#f59e0b' : '#22c55e';
+
+  const partsHtml = partsRequired && partsRequired.length > 0 ? `
+    <div style="margin-top: 24px;">
+      <h3 style="color: #1e293b; font-size: 14px; font-weight: 600; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.05em;">Parts Required</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+            <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: #475569;">Description</th>
+            <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: #475569;">Code</th>
+            <th style="padding: 10px 12px; text-align: center; font-weight: 600; color: #475569;">Qty</th>
+            <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: #475569;">Serial #</th>
+            <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: #475569;">IP Address</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${partsRequired.map((part, i) => `
+            <tr style="border-bottom: 1px solid #f1f5f9; ${i % 2 === 0 ? 'background-color: #ffffff;' : 'background-color: #f8fafc;'}">
+              <td style="padding: 10px 12px; color: #334155;">${escapeHtml(part.description || 'N/A')}</td>
+              <td style="padding: 10px 12px; color: #64748b; font-family: monospace; font-size: 12px;">${escapeHtml(part.code || 'N/A')}</td>
+              <td style="padding: 10px 12px; text-align: center; color: #334155;">${part.quantity || 1}</td>
+              <td style="padding: 10px 12px; color: #64748b; font-family: monospace; font-size: 12px;">${escapeHtml(part.serial_number || 'N/A')}</td>
+              <td style="padding: 10px 12px; color: #64748b; font-family: monospace; font-size: 12px;">${escapeHtml(part.ip_address || 'N/A')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  const hasProducts = Array.isArray(quotationProducts) && quotationProducts.length > 0;
+  const productsHtml = hasProducts ? `
+    <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: #111827; text-transform: uppercase; letter-spacing: 0.03em;">Products / Equipment</p>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+      <thead>
+        <tr style="border-bottom: 2px solid #e5e7eb;">
+          <th style="padding: 8px 0; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Item</th>
+          <th style="padding: 8px 0; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Type</th>
+          <th style="padding: 8px 0; text-align: center; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Qty</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${quotationProducts.map((p, i) => `
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 8px 0; font-size: 14px; color: #111827;">${escapeHtml(p.name || p.description || 'N/A')}</td>
+            <td style="padding: 8px 0; font-size: 13px; color: #6b7280;">${escapeHtml(p.type || p.category || '')}</td>
+            <td style="padding: 8px 0; text-align: center; font-size: 14px; color: #111827;">${p.quantity || 1}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  ` : '';
+
+  const emailHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Job Assignment - ${escapeHtml(jobNumber)}</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-width: 520px; margin: 0 auto; padding: 32px 24px;">
+        <!-- Header -->
+        <h1 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 700; color: #111827;">${isReassignment ? 'Job Reassigned' : 'New Job Scheduled'}</h1>
+        <p style="margin: 0 0 24px 0; font-size: 14px; color: #374151; line-height: 1.6;">
+          Hello ${escapeHtml(technicianName)}, you have been ${isReassignment ? 'reassigned' : 'assigned'} a new service request. Please review the details below to prepare for your shift.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0 0 24px 0;">
+
+        <!-- Job Number & Client Name -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Job Number</p>
+              <p style="margin: 0; font-size: 16px; font-weight: 700; color: #111827;">#${escapeHtml(jobNumber)}</p>
+            </td>
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Client Name</p>
+              <p style="margin: 0; font-size: 16px; font-weight: 600; color: #111827;">${escapeHtml(customerName || 'N/A')}</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Date & Start Time -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+          <tr>
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Date</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">📅 ${formattedDate}</p>
+            </td>
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Start Time</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">🕐 ${formattedTime}</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Vehicle Details -->
+        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: #111827; text-transform: uppercase; letter-spacing: 0.03em;">🚗 Vehicle Details</p>
+        <div style="background-color: #eff6ff; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+          ${vehicleRegistration || vehicleMake || vehicleModel || vehicleYear ? `
+          <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #111827;">
+            ${escapeHtml(vehicleYear || '')} ${escapeHtml(vehicleMake || '')} ${escapeHtml(vehicleModel || '')}${vehicleRegistration ? ` - ${escapeHtml(vehicleRegistration)}` : ''}
+          </p>
+          ` : '<p style="margin: 0 0 6px 0; font-size: 14px; color: #6b7280;">No vehicle information provided</p>'}
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              ${vehicleColour ? `
+              <td style="padding: 2px 0; width: 50%;">
+                <span style="font-size: 12px; color: #6b7280;">Colour: </span>
+                <span style="font-size: 13px; color: #111827; font-weight: 500;">${escapeHtml(vehicleColour)}</span>
+              </td>
+              ` : ''}
+              ${vinNumber ? `
+              <td style="padding: 2px 0; width: ${vehicleColour ? '50' : '100'}%;">
+                <span style="font-size: 12px; color: #6b7280;">VIN: </span>
+                <span style="font-size: 13px; color: #111827; font-weight: 500;">${escapeHtml(vinNumber)}</span>
+              </td>
+              ` : ''}
+            </tr>
+            <tr>
+              ${odometer ? `
+              <td style="padding: 2px 0; width: 50%;">
+                <span style="font-size: 12px; color: #6b7280;">Odometer: </span>
+                <span style="font-size: 13px; color: #111827; font-weight: 500;">${escapeHtml(odometer)}</span>
+              </td>
+              ` : ''}
+            </tr>
+          </table>
+        </div>
+
+        <!-- Job Type, Priority & Order -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="width: 33%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Job Type</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(jobTypeDisplay)}</p>
+            </td>
+            <td style="width: 33%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Priority</p>
+              <p style="margin: 0; font-size: 15px; color: #111827; font-weight: 600;">${priority ? escapeHtml(priority.charAt(0).toUpperCase() + priority.slice(1)) : 'N/A'}</p>
+            </td>
+            ${orderNumber ? `
+            <td style="width: 34%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Order #</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(orderNumber)}</p>
+            </td>
+            ` : ''}
+          </tr>
+        </table>
+
+        ${purchaseType || jobSubType ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            ${purchaseType ? `
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Cash Type</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(purchaseType === 'purchase' ? 'Cash' : purchaseType === 'rental' ? 'Rental' : purchaseType)}</p>
+            </td>
+            ` : ''}
+            ${jobSubType ? `
+            <td style="width: ${purchaseType ? '50' : '100'}%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Sub Category</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(jobSubType)}</p>
+            </td>
+            ` : ''}
+          </tr>
+        </table>
+        ` : ''}
+
+        ${dueDate ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Due Date</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${formattedDueDate}</p>
+            </td>
+            ${estimatedDuration ? `
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Est. Duration</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(String(estimatedDuration))} hours</p>
+            </td>
+            ` : ''}
+          </tr>
+        </table>
+        ` : ''}
+
+        ${!dueDate && estimatedDuration ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Est. Duration</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(String(estimatedDuration))} hours</p>
+            </td>
+          </tr>
+        </table>
+        ` : ''}
+
+        ${jobLocation ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Location</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">📍 ${escapeHtml(jobLocation)}</p>
+            </td>
+          </tr>
+        </table>
+        ` : ''}
+
+        ${customerAddress ? `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Customer Address</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(customerAddress)}</p>
+            </td>
+          </tr>
+        </table>
+        ` : ''}
+
+        ${contactPerson || customerPhone || customerEmail ? `
+        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: #111827; text-transform: uppercase; letter-spacing: 0.03em;">Contact Information</p>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+          <tr>
+            ${contactPerson ? `
+            <td style="width: 50%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Contact Person</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(contactPerson)}</p>
+            </td>
+            ` : ''}
+            ${customerPhone ? `
+            <td style="width: ${contactPerson ? '50' : '100'}%; padding: 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Phone</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(customerPhone)}</p>
+            </td>
+            ` : ''}
+          </tr>
+          ${customerEmail ? `
+          <tr>
+            <td style="padding: 8px 0 0 0; vertical-align: top;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Email</p>
+              <p style="margin: 0; font-size: 15px; color: #111827;">${escapeHtml(customerEmail)}</p>
+            </td>
+          </tr>
+          ` : ''}
+        </table>
+        ` : ''}
+
+        ${jobDescription ? `
+        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: #111827; text-transform: uppercase; letter-spacing: 0.03em;">Job Description</p>
+        <div style="background-color: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+          <p style="margin: 0; font-size: 14px; color: #374151; line-height: 1.6;">${escapeHtml(jobDescription)}</p>
+        </div>
+        ` : ''}
+
+        ${productsHtml}
+        ${partsHtml}
+
+        <!-- Footer -->
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0 16px 0;">
+        <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+          This email was sent by Solflo Workforce Management
+        </p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const recipients: EmailRecipient[] = technicianEmails.map((email, index) => ({
+    id: `tech_assign_${index}_${Date.now()}`,
+    email,
+  }));
+
+  const action = isReassignment ? 'Reassigned' : 'Assigned';
+
+  return await sendEmail(recipients, {
+    subject: `Job ${action} - #${jobNumber} (${jobTypeDisplay})`,
+    html: emailHTML,
+    senderName: 'Solflo Workforce',
+    senderEmail: process.env.EMAIL_FROM,
+  });
+}

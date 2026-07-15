@@ -227,7 +227,11 @@ export default function Dashboard() {
     const loadingToast = sonnerToast.loading(`Completing job ${job.job_number}...`);
 
     try {
-      const result = await completeTechJobCard(job.id);
+      const result = await completeTechJobCard(job.id, {
+        completion_notes: 'Job done',
+        user_id: userInfo?.user?.id || null,
+        user_email: userInfo?.user?.email || null,
+      });
       if (!result.ok) {
         throw new Error(result.error);
       }
@@ -425,6 +429,14 @@ export default function Dashboard() {
   const isEscalatedToTech = (job: Job) =>
     String(job.escalation_role || '').toLowerCase() === 'tech';
 
+  const wasJobReturnedToAdmin = (job: Job): boolean => {
+    const history = job.move_history;
+    if (!Array.isArray(history) || history.length === 0) return false;
+    const last = history[history.length - 1];
+    const note = String(last?.note || '').trim().toLowerCase();
+    return note === 'job done' || note === 'job incomplete';
+  };
+
   const isOpenJob = (job: Job) => {
     const normalizedJobStatus = String(job.job_status || '').trim().toLowerCase();
     const normalizedStatus = String(job.status || '').trim().toLowerCase();
@@ -437,11 +449,8 @@ export default function Dashboard() {
     );
   };
 
-  const handleCompleteJobFromList = (job: Job) => {
-    void handleCompleteJob(job);
-  };
-  const activeUserJobs = userJobs.filter((job) => isJobActiveInTechQueue(job));
-  const nonCompletedUserJobs = userJobs.filter((job) => !isJobMarkedCompleted(job));
+  const activeUserJobs = userJobs.filter((job) => isJobActiveInTechQueue(job) && !wasJobReturnedToAdmin(job));
+  const nonCompletedUserJobs = userJobs.filter((job) => !isJobMarkedCompleted(job) && !wasJobReturnedToAdmin(job));
   const assignedActiveJobs = activeUserJobs.filter((job) => Boolean(getAssignedTechnicianLabel(job)));
   const jobPoolForTeamViews = userInfo?.isTechAdmin ? activeUserJobs : assignedActiveJobs;
   const escalationJobs = jobPoolForTeamViews.filter((job) => isEscalatedToTech(job));
@@ -490,15 +499,15 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 mt-3">
-                  <JobMoveSelect
-                    isMoving={movingJobId === job.id}
-                    onMove={(destination) => {
-                      const isCompleted = String(job.status || '').toLowerCase() === 'completed' || String(job.job_status || '').toLowerCase() === 'completed';
-                      const note = isCompleted ? 'Job done' : 'Job incomplete';
-                      handleMoveJob(job, destination, note);
-                    }}
-                    className="w-full h-10"
-                  />
+                  {!wasJobReturnedToAdmin(job) && (
+                    <JobMoveSelect
+                      isMoving={movingJobId === job.id}
+                      onMove={(destination, note) => {
+                        handleMoveJob(job, destination, note);
+                      }}
+                      className="w-full h-10"
+                    />
+                  )}
                   {job.job_type === 'repair' && job.job_status === 'created' ? (
                     <div className="flex flex-col gap-2 w-full">
                       <Button 
@@ -511,7 +520,7 @@ export default function Dashboard() {
                       </Button>
                       <Button 
                         size="sm" 
-                        onClick={() => handleCompleteJobFromList(job)}
+                        onClick={() => handleCompleteJob(job)}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-11 sm:h-10 rounded-lg"
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
@@ -530,7 +539,7 @@ export default function Dashboard() {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => handleCompleteJobFromList(job)}
+                        onClick={() => handleCompleteJob(job)}
                         disabled={completingJobId === job.id}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-11 sm:h-10 rounded-lg"
                       >
@@ -576,7 +585,6 @@ export default function Dashboard() {
               <th className="p-4 font-medium text-slate-700 text-left">Quotation Products</th>
               <th className="p-4 font-medium text-slate-700 text-left">Parts Required</th>
               <th className="p-4 font-medium text-slate-700 text-left">Schedule</th>
-              <th className="p-4 font-medium text-slate-700 text-left">Status</th>
               <th className="p-4 font-medium text-slate-700 text-left max-w-[160px]">Notes</th>
               <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
             </tr>
@@ -617,11 +625,6 @@ export default function Dashboard() {
                   <td className="p-4 text-slate-700 text-sm">
                     {formatSchedule(job)}
                   </td>
-                  <td className="p-4">
-                    <Badge variant="outline" className={getStatusColor(job.job_status)}>
-                      {job.job_status === 'created' ? 'New' : job.job_status}
-                    </Badge>
-                  </td>
                   <td className="px-3 py-2 text-slate-700 max-w-[160px]">
                     <div className="truncate text-[11px] text-slate-600" title={(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return ""; const last = h[h.length - 1]; return last.note || ""; })()}>
                       {(() => { const h = job.move_history; if (!Array.isArray(h) || !h.length) return "—"; const last = h[h.length - 1]; return last.note || "—"; })()}
@@ -629,15 +632,15 @@ export default function Dashboard() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center space-x-2">
-                      <JobMoveSelect
-                        isMoving={movingJobId === job.id}
-                        onMove={(destination) => {
-                          const isCompleted = String(job.status || '').toLowerCase() === 'completed' || String(job.job_status || '').toLowerCase() === 'completed';
-                          const note = isCompleted ? 'Job done' : 'Job incomplete';
-                          handleMoveJob(job, destination, note);
-                        }}
-                        className="w-[140px] h-9"
-                      />
+                      {!wasJobReturnedToAdmin(job) && (
+                        <JobMoveSelect
+                          isMoving={movingJobId === job.id}
+                          onMove={(destination, note) => {
+                            handleMoveJob(job, destination, note);
+                          }}
+                          className="w-[140px] h-9"
+                        />
+                      )}
                       {job.job_type === 'repair' && job.job_status === 'created' ? (
                         <div className="flex flex-col gap-2 min-w-[140px]">
                           <Button 
@@ -652,7 +655,7 @@ export default function Dashboard() {
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => handleCompleteJobFromList(job)}
+                            onClick={() => handleCompleteJob(job)}
                             className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             <CheckCircle className="w-4 h-4 mr-1" />
@@ -673,7 +676,7 @@ export default function Dashboard() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleCompleteJobFromList(job)}
+                            onClick={() => handleCompleteJob(job)}
                             disabled={completingJobId === job.id}
                             className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white"
                           >

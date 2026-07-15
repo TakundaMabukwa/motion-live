@@ -880,6 +880,13 @@ export default function InventoryPage() {
     );
   };
 
+  const hasDetailsCompletedNote = (job: JobCard) => {
+    const history = Array.isArray(job.move_history) ? job.move_history : [];
+    if (history.length === 0) return false;
+    const last = history[history.length - 1] as Record<string, unknown>;
+    return String(last.note || "").trim().toUpperCase() === "DETAILS_COMPLETED";
+  };
+
   const isMovedAwayFromInventory = (job: JobCard) => {
     const normalizedRole = String(job.role || "").toLowerCase();
     const normalizedMoveTo = String(job.move_to || "").toLowerCase();
@@ -971,9 +978,10 @@ export default function InventoryPage() {
   const completedJobs = jobCards
     .filter((job: JobCard) => {
       const normalizedRole = String(job.role || "").trim().toLowerCase();
-      return (
-        normalizedRole === "inv" && isCompletedOnEitherStatusField(job)
-      );
+      const isInv = normalizedRole === "inv";
+      const isCompleted = isCompletedOnEitherStatusField(job);
+      const hasDetailsNote = hasDetailsCompletedNote(job);
+      return isInv || isCompleted || hasDetailsNote;
     });
 
   const filteredJobCardsWithParts = jobCardsWithParts.filter((job: JobCard) => {
