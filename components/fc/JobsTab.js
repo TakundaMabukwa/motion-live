@@ -29,9 +29,7 @@ import InvoiceJobModal from "./InvoiceJobModal";
 const JOB_TABS = [
   { id: "job-pool", label: "Job Pool" },
   { id: "not-completed", label: "Not Ready For Invoicing" },
-  { id: "not-completed-old", label: "Not Ready For Invoicing (old)" },
   { id: "completed", label: "Ready For Invoicing" },
-  { id: "completed-old", label: "Ready for Invoicing (old)" },
 ];
 
 const parseProducts = (val) => {
@@ -416,31 +414,13 @@ export default function JobsTab() {
     return js || s || "pending";
   }, []);
 
-  const isCompletedNotInvoiced = useCallback((job) => {
-    const completed = String(job.status || "").toLowerCase() === "completed" || String(job.job_status || "").toLowerCase() === "completed";
-    if (!completed) return false;
-    
-    if ('has_invoice' in job && job.has_invoice) return false;
-    return true;
-  }, []);
-
-  const isNotCompletedAndNotInvoiced = useCallback((job) => {
-    const completed = String(job.status || "").toLowerCase() === "completed" || String(job.job_status || "").toLowerCase() === "completed";
-    if (completed) return false;
-    
-    if ('has_invoice' in job && job.has_invoice) return false;
-    return true;
-  }, []);
-
   const filteredJobs = useMemo(() => {
     const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
     if (jobTab === "job-pool") return visible;
     if (jobTab === "completed") return visible.filter((j) => Boolean(j.ready_for_invoicing));
     if (jobTab === "not-completed") return visible.filter((j) => !j.ready_for_invoicing && String(j.role || "").toLowerCase().trim() === "fc");
-    if (jobTab === "not-completed-old") return visible.filter((j) => isNotCompletedAndNotInvoiced(j));
-    if (jobTab === "completed-old") return visible.filter((j) => isCompletedNotInvoiced(j));
     return visible.filter((j) => getJobStatus(j) !== "completed");
-  }, [jobs, jobTab, getJobStatus, isCompletedNotInvoiced, isNotCompletedAndNotInvoiced]);
+  }, [jobs, jobTab, getJobStatus]);
 
   const filteredJobsSearch = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -715,10 +695,10 @@ export default function JobsTab() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-              {jobTab === "completed" ? "Ready For Invoicing" : jobTab === "completed-old" ? "Ready for Invoicing (old)" : jobTab === "job-pool" ? "Job Pool" : "Not Ready For Invoicing"} ({filteredJobsSearch.length})
+              {jobTab === "completed" ? "Ready For Invoicing" : jobTab === "job-pool" ? "Job Pool" : "Not Ready For Invoicing"} ({filteredJobsSearch.length})
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              {jobTab === "completed" ? "Jobs marked ready for invoicing by inventory." : jobTab === "completed-old" ? "Completed jobs that haven't been invoiced yet." : jobTab === "job-pool" ? "All open jobs across roles." : "Jobs in progress or pending."}
+              {jobTab === "completed" ? "Jobs marked ready for invoicing by inventory." : jobTab === "job-pool" ? "All open jobs across roles." : "Jobs in progress or pending."}
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
@@ -1010,7 +990,7 @@ export default function JobsTab() {
                 <Button variant="outline" size="sm" onClick={() => handleViewJob(job)} className="h-8 text-xs flex-1">
                   <Eye className="mr-1 w-3.5 h-3.5" /> View
                 </Button>
-                {(jobTab === "completed" || jobTab === "completed-old") && (
+                {jobTab === "completed" && (
                 <Button variant="secondary" size="sm" onClick={() => handleEditAndFinalize(job)} className="h-8 text-xs flex-1">
                   <FileEdit className="mr-1 w-3.5 h-3.5" /> Edit &amp; Finalize
                 </Button>
@@ -1033,7 +1013,7 @@ export default function JobsTab() {
           {loading ? (
             <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
         ) : filteredJobsSearch.length === 0 ? (
-          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "ready for invoicing" : jobTab === "not-completed-old" ? "not ready for invoicing (old)" : "not ready for invoicing"} jobs found.</p></div>
+          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "ready for invoicing" : "not ready for invoicing"} jobs found.</p></div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[960px] border-collapse text-xs">
@@ -1081,7 +1061,7 @@ export default function JobsTab() {
                             <Button variant="ghost" size="sm" onClick={() => handleViewJob(job)} className="hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-7 px-2 text-[11px]">
                               <Eye className="mr-1 w-3 h-3" /> View
                             </Button>
-                            {(jobTab === "completed" || jobTab === "completed-old") && (
+                {jobTab === "completed" && (
                             <Button variant="ghost" size="sm" onClick={() => handleEditAndFinalize(job)} className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 h-7 px-2 text-[11px]">
                               <FileEdit className="mr-1 w-3 h-3" /> Edit &amp; Finalize
                             </Button>
@@ -1432,7 +1412,7 @@ export default function JobsTab() {
             <DialogTitle>Move Job to {pendingMoveDestination === "inv" ? "Stock Control" : pendingMoveDestination === "fc" ? "FC" : "Helpdesk"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {(jobTab === "not-completed" || jobTab === "not-completed-old") ? (
+            {jobTab === "not-completed" ? (
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-gray-700">Select Reason *</Label>
                 <div className="flex flex-col gap-2">

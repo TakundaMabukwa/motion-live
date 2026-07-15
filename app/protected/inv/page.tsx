@@ -429,6 +429,8 @@ export default function InventoryPage() {
   const [pendingMoveDestination, setPendingMoveDestination] = useState<string>("");
   const [moveToFcNote, setMoveToFcNote] = useState("");
   const [moveReadyForInvoicing, setMoveReadyForInvoicing] = useState(false);
+  const [selectedMoveNoteOption, setSelectedMoveNoteOption] = useState<string>("");
+  const [invoicedJobNumbers, setInvoicedJobNumbers] = useState<Set<string>>(new Set());
   const [showTechnicianPicker, setShowTechnicianPicker] = useState(false);
   const [pendingTechnicianMove, setPendingTechnicianMove] = useState<{
     context: "deinstalled" | "stock-used" | "quotation";
@@ -512,6 +514,7 @@ export default function InventoryPage() {
       setPendingMoveJobId(null);
       setPendingMoveDestination("");
       setMoveToFcNote("");
+      setSelectedMoveNoteOption("");
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
@@ -794,7 +797,7 @@ export default function InventoryPage() {
     try {
       setLoading(true);
       console.log("Fetching job cards...");
-      const response = await fetch("/api/job-cards?limit=5000");
+      const response = await fetch("/api/job-cards?limit=5000&exclude_invoiced=true");
       console.log("Response status:", response.status);
       console.log(
         "Response headers:",
@@ -981,7 +984,7 @@ export default function InventoryPage() {
       const isInv = normalizedRole === "inv";
       const isCompleted = isCompletedOnEitherStatusField(job);
       const hasDetailsNote = hasDetailsCompletedNote(job);
-      return isInv || isCompleted || hasDetailsNote;
+      return isInv && (isCompleted || hasDetailsNote);
     });
 
   const filteredJobCardsWithParts = jobCardsWithParts.filter((job: JobCard) => {
@@ -6860,17 +6863,50 @@ export default function InventoryPage() {
             <p className="text-sm text-gray-600">
               Add a note before moving this job.
             </p>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Note *
-              </label>
-              <Textarea
-                value={moveToFcNote}
-                onChange={(e) => setMoveToFcNote(e.target.value)}
-                placeholder="Why are you moving this job?"
-                rows={5}
-              />
-            </div>
+            {pendingMoveDestination === "admin" ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Note *
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { value: "DETAILS_COMPLETED", label: "DETAILS_COMPLETED" },
+                    { value: "JOB_CARD_UPDATED", label: "JOB_CARD_UPDATED" },
+                    { value: "NO_STOCK_REQUIRED", label: "No Stock Required" },
+                  ].map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-3 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-4 py-3 hover:bg-gray-100"
+                    >
+                      <input
+                        type="radio"
+                        name="moveNoteOption"
+                        value={option.value}
+                        checked={selectedMoveNoteOption === option.value}
+                        onChange={(e) => {
+                          setSelectedMoveNoteOption(e.target.value);
+                          setMoveToFcNote(e.target.value);
+                        }}
+                        className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Note *
+                </label>
+                <Textarea
+                  value={moveToFcNote}
+                  onChange={(e) => setMoveToFcNote(e.target.value)}
+                  placeholder="Why are you moving this job?"
+                  rows={5}
+                />
+              </div>
+            )}
             {pendingMoveDestination === "fc" && (
             <label className="flex items-center gap-3 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
               <input
@@ -6891,6 +6927,7 @@ export default function InventoryPage() {
                   setPendingMoveDestination("");
                   setMoveToFcNote("");
                   setMoveReadyForInvoicing(false);
+                  setSelectedMoveNoteOption("");
                 }}
               >
                 Cancel

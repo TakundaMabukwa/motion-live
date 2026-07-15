@@ -881,6 +881,17 @@ export default function RoleEscalationsPanel({
                       />
                       <span className="text-sm font-medium text-gray-700">use boot stock</span>
                     </label>
+                    <label className="flex items-center gap-3 cursor-pointer rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+                      <input
+                        type="radio"
+                        name="moveNote"
+                        value="No Stock Required"
+                        checked={moveNote === "No Stock Required"}
+                        onChange={() => setMoveNote("No Stock Required")}
+                        className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">No Stock Required</span>
+                    </label>
                   </div>
                 </div>
               </>

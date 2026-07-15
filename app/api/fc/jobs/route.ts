@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim();
     const showAllJobs = searchParams.get("allJobs") === "true";
+    const roleFilter = String(searchParams.get("role") || "").trim().toLowerCase();
 
     const { data: userData } = await supabase
       .from("users")
@@ -157,14 +158,18 @@ export async function GET(request: NextRequest) {
 
     // Fetch job_card_ids that already have an invoice in the invoices table
     const invoicedJobIds = new Set<string>();
-    const { data: invoiceRows } = await serviceSupabase
+    const { data: invoiceRows, error: invoiceError } = await serviceSupabase
       .from("invoices")
       .select("job_card_id");
+    if (invoiceError) {
+      console.error("Error fetching invoices for filtering:", invoiceError);
+    }
     if (Array.isArray(invoiceRows)) {
       for (const row of invoiceRows) {
         if (row.job_card_id) invoicedJobIds.add(String(row.job_card_id));
       }
     }
+    console.log(`[FC Jobs] Found ${invoicedJobIds.size} invoiced job IDs to exclude`);
 
     const normalizeToken = (value: unknown) =>
       String(value || "").trim().toLowerCase();
@@ -173,24 +178,15 @@ export async function GET(request: NextRequest) {
       // Exclude jobs that have an invoice record in the invoices table
       if (invoicedJobIds.has(String(job.id))) return false;
 
+      // Exclude jobs with status "invoiced"
       const s = normalizeToken(job.status);
       const js = normalizeToken(job.job_status);
       if (s === "invoiced" || js === "invoiced") return false;
 
-      const billingRaw = job.billing_statuses;
-      const billing = typeof billingRaw === "string"
-        ? (() => { try { return JSON.parse(billingRaw); } catch { return null; } })()
-        : (billingRaw && typeof billingRaw === "object" ? billingRaw : null);
-
-      if (billing) {
-        const inv = (billing as Record<string, unknown>).invoice;
-        if (inv === true) return false;
-        if (typeof inv === "object" && inv !== null) {
-          const invObj = inv as Record<string, unknown>;
-          if (invObj.done === true || invObj.invoice_id || invObj.invoice_number || invObj.reference) {
-            return false;
-          }
-        }
+      // Filter by role if requested (e.g. role=fc for Not Ready For Invoicing)
+      if (roleFilter) {
+        const jobRole = normalizeToken(job.role);
+        if (jobRole !== roleFilter) return false;
       }
 
       return true;

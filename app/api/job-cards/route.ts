@@ -188,6 +188,7 @@ export async function GET(request: NextRequest) {
     const accountNumber = searchParams.get('account_number');
     const escalationRole = searchParams.get('escalation_role');
     const excludeCompleted = String(searchParams.get('exclude_completed') || '').toLowerCase() === 'true';
+    const excludeInvoiced = String(searchParams.get('exclude_invoiced') || '').toLowerCase() === 'true';
     const view = searchParams.get('view') || '';
     const includeCount = String(searchParams.get('include_count') || 'true').toLowerCase() !== 'false';
     const selectFields =
@@ -238,9 +239,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch job cards' }, { status: 500 });
     }
 
-    // When exclude_completed is true, also filter out jobs that have invoices
     let filteredData = data || [];
-    if (excludeCompleted && filteredData.length > 0) {
+
+    // Filter out jobs that have invoices
+    if (excludeInvoiced && filteredData.length > 0) {
+      const jobIds = filteredData.map((j: Record<string, unknown>) => j.id).filter(Boolean);
+      const { data: invoiceRows } = await supabase
+        .from('invoices')
+        .select('job_card_id')
+        .in('job_card_id', jobIds);
+      const invoicedIds = new Set(
+        (Array.isArray(invoiceRows) ? invoiceRows : []).map((r: Record<string, unknown>) => r.job_card_id)
+      );
+      filteredData = filteredData.filter((j: Record<string, unknown>) => !invoicedIds.has(j.id));
+    } else if (excludeCompleted && filteredData.length > 0) {
       const jobIds = filteredData.map((j: Record<string, unknown>) => j.id).filter(Boolean);
       const { data: invoiceRows } = await supabase
         .from('invoices')
