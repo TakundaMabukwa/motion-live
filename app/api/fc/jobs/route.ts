@@ -156,29 +156,26 @@ export async function GET(request: NextRequest) {
 
     const jobs = allRows;
 
-    // Fetch invoiced job_card_ids AND job_numbers from the invoices table
-    const invoicedJobIds = new Set<string>();
+    // Fetch invoiced job_numbers from the invoices table
     const invoicedJobNumbers = new Set<string>();
     const { data: invoiceRows, error: invoiceError } = await serviceSupabase
       .from("invoices")
-      .select("job_card_id, job_number");
+      .select("job_number");
     if (invoiceError) {
       console.error("Error fetching invoices for filtering:", invoiceError);
     }
     if (Array.isArray(invoiceRows)) {
       for (const row of invoiceRows) {
-        if (row.job_card_id) invoicedJobIds.add(String(row.job_card_id));
         if (row.job_number) invoicedJobNumbers.add(String(row.job_number).trim().toLowerCase());
       }
     }
-    console.log(`[FC Jobs] Found ${invoicedJobIds.size} invoiced job IDs + ${invoicedJobNumbers.size} invoiced job numbers to exclude`);
+    console.log(`[FC Jobs] Found ${invoicedJobNumbers.size} invoiced job numbers to exclude`);
 
     const normalizeToken = (value: unknown) =>
       String(value || "").trim().toLowerCase();
 
     const allJobs = jobs.filter((job) => {
-      // Exclude jobs that have an invoice record in the invoices table (by id or job_number)
-      if (invoicedJobIds.has(String(job.id))) return false;
+      // Exclude jobs that have a matching job_number in the invoices table
       const jobNum = normalizeToken(job.job_number);
       if (jobNum && invoicedJobNumbers.has(jobNum)) return false;
 
