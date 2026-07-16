@@ -906,6 +906,18 @@ export default function RoleEscalationsPanel({
                 />
               </div>
             )}
+            {pendingMoveDestination === "fc" && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Parts to be adjusted</Label>
+                <Textarea
+                  value={moveNote}
+                  onChange={(e) => setMoveNote(e.target.value)}
+                  placeholder="Enter parts to be adjusted..."
+                  rows={4}
+                  className="resize-none"
+                />
+              </div>
+            )}
             <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
