@@ -229,9 +229,12 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
         const cnResult = await creditNotesRes.json();
         const rawCN = Array.isArray(cnResult?.credit_notes) ? cnResult.credit_notes : [];
         
-        // Track which invoices have been credited for re-invoice button
+        // Track which invoices have been credited (approved only) for re-invoice button
         const creditedSet = new Set<string>();
         rawCN.forEach((cn: Record<string, unknown>) => {
+          const isDeclined = Boolean(cn?.decline_reason);
+          const isApproved = cn?.approved === true;
+          if (isDeclined || !isApproved) return;
           const ref = String(cn?.reference || cn?.invoice_credited || "").trim();
           if (ref) creditedSet.add(ref);
         });
