@@ -129,6 +129,22 @@ export async function GET(request: NextRequest) {
       )];
     }
 
+    // Step 1: Fetch all invoiced job_numbers from the invoices table
+    const invoicedJobNumbers: string[] = [];
+    const { data: invoiceRows, error: invoiceError } = await serviceSupabase
+      .from("invoices")
+      .select("job_number");
+    if (invoiceError) {
+      console.error("[FC Jobs] Error fetching invoices for filtering:", invoiceError);
+    }
+    if (Array.isArray(invoiceRows)) {
+      for (const row of invoiceRows) {
+        if (row.job_number) invoicedJobNumbers.push(String(row.job_number).trim());
+      }
+    }
+    console.log(`[FC Jobs] Found ${invoicedJobNumbers.length} invoiced job numbers to exclude:`, invoicedJobNumbers);
+
+    // Step 2: Fetch jobs, excluding invoiced job_numbers at the database level
     let query = serviceSupabase
       .from("job_cards")
       .select("*")
@@ -136,6 +152,12 @@ export async function GET(request: NextRequest) {
 
     if (!showAllJobs && isFc && fcCostCodes.length > 0) {
       query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
+    }
+
+    // Exclude job_numbers that exist in the invoices table
+    if (invoicedJobNumbers.length > 0) {
+      const quoted = invoicedJobNumbers.map((n) => `"${n.replace(/"/g, '""')}"`).join(",");
+      query = query.not("job_number", "in", `(${quoted})`);
     }
 
     // Fetch in batches — Supabase PostgREST caps at 1000 rows per request
@@ -156,32 +178,10 @@ export async function GET(request: NextRequest) {
 
     const jobs = allRows;
 
-    // Fetch invoiced job_numbers from the invoices table
-    const invoicedJobNumbers = new Set<string>();
-    const { data: invoiceRows, error: invoiceError } = await serviceSupabase
-      .from("invoices")
-      .select("job_number");
-    if (invoiceError) {
-      console.error("Error fetching invoices for filtering:", invoiceError);
-    }
-    if (Array.isArray(invoiceRows)) {
-      for (const row of invoiceRows) {
-        if (row.job_number) invoicedJobNumbers.add(String(row.job_number).trim().toLowerCase());
-      }
-    }
-    console.log(`[FC Jobs] Found ${invoicedJobNumbers.size} invoiced job numbers to exclude`);
-
     const normalizeToken = (value: unknown) =>
       String(value || "").trim().toLowerCase();
 
     const allJobs = jobs.filter((job) => {
-      // Exclude jobs that have a matching job_number in the invoices table
-      const jobNum = normalizeToken(job.job_number);
-      if (jobNum && invoicedJobNumbers.has(jobNum)) {
-        console.log(`[FC Jobs] EXCLUDED ${job.job_number} — found in invoices table`);
-        return false;
-      }
-
       // Exclude jobs with status "invoiced"
       const s = normalizeToken(job.status);
       const js = normalizeToken(job.job_status);
