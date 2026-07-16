@@ -19,6 +19,18 @@ const getMonthKeyFromValue = (value: unknown) => {
     return plainDateMatch[1];
   }
 
+  // Handle ISO timestamps like 2025-01-15T00:00:00Z or 2025-01-15T00:00:00+00:00
+  const isoMatch = raw.match(/^(\d{4}-\d{2})-\d{2}T/);
+  if (isoMatch) {
+    return isoMatch[1];
+  }
+
+  // Handle date-only with timezone offset like 2025-01-15+00:00
+  const dateOffsetMatch = raw.match(/^(\d{4}-\d{2})-\d{2}[+-]/);
+  if (dateOffsetMatch) {
+    return dateOffsetMatch[1];
+  }
+
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return null;
 
@@ -196,9 +208,15 @@ export async function GET(request: NextRequest) {
       ? searchFilteredRows.filter((invoice) => {
           const billingMonth = getMonthKeyFromValue(invoice?.billing_month);
           const invoiceMonth = getMonthKeyFromValue(invoice?.invoice_date);
-          return billingMonth === month || invoiceMonth === month;
+          const matches = billingMonth === month || invoiceMonth === month;
+          if (!matches) {
+            console.log(`[Invoice Filter] Excluded: invoice=${invoice?.invoice_number}, billing_month=${invoice?.billing_month} -> ${billingMonth}, invoice_date=${invoice?.invoice_date} -> ${invoiceMonth}, expected=${month}`);
+          }
+          return matches;
         })
       : searchFilteredRows;
+
+    console.log(`[Invoice Filter] Month=${month}, total=${searchFilteredRows.length}, filtered=${monthFilteredRows.length}`);
 
     const sourceTypeFilteredRows = sourceType && sourceType !== "all"
       ? monthFilteredRows.filter((invoice) => {

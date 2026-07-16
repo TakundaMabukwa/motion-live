@@ -1209,8 +1209,80 @@ export const applyQuoteBilling = async (
   const vehicleModel = body?.vehicle_model || null;
   const vehicleYear = body?.vehicle_year || null;
 
+  const rawJobType = String(body?.job_type || "").trim().toLowerCase();
+
   if (!costCode) {
     throw new Error("cost_code is required");
+  }
+
+  if (rawJobType === "repair" || rawJobType === "admin_created" || rawJobType === "admincreated") {
+    if (!jobCardId) {
+      return { success: true, cost_code: costCode, mode: jobType, updated: 0, skipped: [], message: "No job card ID" };
+    }
+
+    const { data: jobCard } = await supabase
+      .from("job_cards")
+      .select("parts_required, equipment_used, vehicle_registration")
+      .eq("id", jobCardId)
+      .single();
+
+    const reg = (body?.vehicle_registration || jobCard?.vehicle_registration || "").toString().trim();
+    if (!reg) {
+      return { success: true, cost_code: costCode, mode: jobType, updated: 0, skipped: [], message: "No registration found" };
+    }
+
+    const { data: vehicleRows } = await supabase
+      .from("vehicles_duplicate")
+      .select("*")
+      .or(`reg.ilike.%${reg}%,fleet_number.ilike.%${reg}%`)
+      .limit(1);
+
+    const vehicle = Array.isArray(vehicleRows) ? vehicleRows[0] : null;
+    if (!vehicle) {
+      return { success: true, cost_code: costCode, mode: jobType, updated: 0, skipped: [], message: "Vehicle not found in vehicles_duplicate" };
+    }
+
+    const parts = [
+      ...(Array.isArray(jobCard?.parts_required) ? jobCard.parts_required : []),
+      ...(Array.isArray(jobCard?.equipment_used) ? jobCard.equipment_used : []),
+    ];
+
+    const serialUpdates: Record<string, any> = {};
+    for (const part of parts) {
+      const serial = String(part?.serial_number || "").trim();
+      if (!serial) continue;
+      const fieldMapping = resolveField(part);
+      if (fieldMapping?.kind === "grouped") {
+        const serialField = `${fieldMapping.field}_serial_number`;
+        if (vehicle[serialField] !== serial) {
+          serialUpdates[serialField] = serial;
+        }
+      }
+      if (fieldMapping?.kind === "grouped") {
+        const ip = String(part?.ip_address || "").trim();
+        if (ip) {
+          const ipField = `${fieldMapping.field}_ip`;
+          if (vehicle[ipField] !== ip) {
+            serialUpdates[ipField] = ip;
+          }
+        }
+      }
+    }
+
+    if (Object.keys(serialUpdates).length === 0) {
+      return { success: true, cost_code: costCode, mode: jobType, updated: 0, skipped: [], message: "No serial/IP changes" };
+    }
+
+    const { error: updateError } = await supabase
+      .from("vehicles_duplicate")
+      .update(serialUpdates)
+      .eq("id", vehicle.id);
+
+    if (updateError) {
+      throw new Error(`Failed to update vehicle serial/IP: ${updateError.message}`);
+    }
+
+    return { success: true, cost_code: costCode, mode: jobType, updated: 1, skipped: [] };
   }
 
   if (quotationProducts.length === 0) {
