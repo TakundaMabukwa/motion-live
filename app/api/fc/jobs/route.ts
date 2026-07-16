@@ -177,7 +177,10 @@ export async function GET(request: NextRequest) {
     const allJobs = jobs.filter((job) => {
       // Exclude jobs that have a matching job_number in the invoices table
       const jobNum = normalizeToken(job.job_number);
-      if (jobNum && invoicedJobNumbers.has(jobNum)) return false;
+      if (jobNum && invoicedJobNumbers.has(jobNum)) {
+        console.log(`[FC Jobs] EXCLUDED ${job.job_number} — found in invoices table`);
+        return false;
+      }
 
       // Exclude jobs with status "invoiced"
       const s = normalizeToken(job.status);
@@ -192,6 +195,8 @@ export async function GET(request: NextRequest) {
 
       return true;
     });
+
+    console.log(`[FC Jobs] After filtering: ${allJobs.length} jobs returned (excluded ${jobs.length - allJobs.length} total)`);
 
     // Apply search filter
     const searchResults = search
