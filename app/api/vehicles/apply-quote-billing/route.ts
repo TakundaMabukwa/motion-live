@@ -991,6 +991,55 @@ const applyQuoteBillingToTable = async (
           model: vehicleModel || null,
           year: vehicleYear || null,
         };
+
+        const newVehicleBilling: Record<string, any> = {};
+        const newOnceOffFees: Array<Record<string, any>> = [];
+
+        for (const item of itemsForReg) {
+          const canApplyRecurring =
+            !enforceAnnuitySelection ||
+            annuitySelectionKeySet.has(buildAnnuitySelectionKey(item));
+          const recurringSpecs = canApplyRecurring
+            ? getRecurringChargeSpecs(item, jobType)
+            : [];
+
+          for (const spec of recurringSpecs) {
+            const column = pickBillingColumn(item, newVehicle, newVehicleBilling, {
+              preferSub: spec.preferSub,
+              preferRental: spec.preferRental,
+              mode: jobType,
+            });
+            if (!column) continue;
+            const currentVal = Number(newVehicleBilling[column] ?? 0);
+            if (Number.isFinite(currentVal) && currentVal > 0) {
+              newVehicleBilling[column] = Number((currentVal + spec.amount).toFixed(2));
+            } else {
+              newVehicleBilling[column] = spec.amount;
+            }
+          }
+
+          for (const feeSpec of getOnceOffChargeSpecs(item, jobType)) {
+            newOnceOffFees.push(
+              buildOnceOffFeeEntry(item, feeSpec.amount, feeSpec.chargeType, {
+                jobCardId,
+                quotationNumber,
+                invoiceNumber,
+                reg,
+                jobType,
+              }),
+            );
+          }
+        }
+
+        Object.assign(newVehicle, newVehicleBilling);
+        if (newOnceOffFees.length > 0) {
+          newVehicle.once_off_fees = newOnceOffFees;
+        }
+        Object.assign(
+          newVehicle,
+          recalculateVehicleTotals({ ...newVehicle }),
+        );
+
         const { data: inserted, error: insertError } = await supabase
           .from(tableName)
           .insert(newVehicle)
@@ -1034,15 +1083,6 @@ const applyQuoteBillingToTable = async (
         }
 
         if (jobType === "deinstall") {
-          const annuityEndDate = item?.annuity_end_date;
-          if (annuityEndDate) {
-            const endDate = new Date(annuityEndDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            if (endDate > today) {
-              continue;
-            }
-          }
           columnUpdates[column] = 0;
           continue;
         }
