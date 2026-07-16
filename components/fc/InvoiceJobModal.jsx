@@ -827,20 +827,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         description: row.description, comments: row.comments, quantity: row.qty,
         unit_price: row.unitPrice, vat_percent: row.vatPercent, vat_amount: row.vatAmount, total_incl: row.totalIncl,
       }));
-      const invoiceCreateResponse = await fetch("/api/invoices/job-card", {
+      const invoiceCreateResponse = await fetch("/api/fc/jobs/generate-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jobCardId: effectiveJob.id, jobNumber: effectiveJob.job_number, quotationNumber: effectiveJob.quotation_number,
-          accountNumber: effectiveAccountNumber, invoiceDate: billingInvoiceDate,
-          clientName: invoicePreview?.clientName || invoiceFormData.clientName || effectiveJob.customer_name,
-          clientEmail: invoicePreview?.clientEmail || invoiceFormData.clientEmail || effectiveJob.customer_email,
-          clientPhone: invoicePreview?.clientPhone || invoiceFormData.clientPhone || effectiveJob.customer_phone,
-          clientAddress: invoicePreview?.clientAddress || invoiceFormData.clientAddress || effectiveJob.customer_address,
-          dueDate: invoiceFormData.dueDate, paymentTerms: invoiceFormData.paymentTerms,
-          notes: invoiceFormData.notes || effectiveJob.special_instructions || "No special instructions.",
-          subtotal: invoicePreview?.totals?.subtotal || 0, vatAmount: invoicePreview?.totals?.vat || 0,
-          discountAmount: invoicePreview?.totals?.discount || 0, totalAmount: invoicePreview?.totals?.total || 0, lineItems,
+          jobCardId: effectiveJob.id,
+          invoiceDate: billingInvoiceDate,
         }),
       });
       const invoiceCreateResult = await invoiceCreateResponse.json().catch(() => ({}));
