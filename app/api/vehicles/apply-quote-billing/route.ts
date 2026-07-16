@@ -981,11 +981,34 @@ const applyQuoteBillingToTable = async (
     const existing = matchingRows[0] || null;
 
     if (!existing) {
-      skipped.push({ reason: "vehicle_not_found", reg, table: tableName });
-      continue;
+      if (jobType === "install" && tableName === "vehicles_duplicate") {
+        const newVehicle: Record<string, any> = {
+          reg,
+          new_account_number: costCode,
+          account_number: costCode,
+          company: customerName || "Unknown",
+          make: vehicleMake || null,
+          model: vehicleModel || null,
+          year: vehicleYear || null,
+        };
+        const { data: inserted, error: insertError } = await supabase
+          .from(tableName)
+          .insert(newVehicle)
+          .select("*")
+          .single();
+        if (insertError) {
+          throw new Error(`Failed to create vehicle in ${tableName}: ${insertError.message}`);
+        }
+        if (inserted) {
+          matchingRows.push(inserted);
+        }
+      } else {
+        skipped.push({ reason: "vehicle_not_found", reg, table: tableName });
+        continue;
+      }
     }
 
-    const currentVehicle = existing;
+    const currentVehicle = matchingRows[0];
 
     const columnUpdates: Record<string, any> = {};
     const onceOffFees: Array<Record<string, any>> = [];
@@ -1011,6 +1034,15 @@ const applyQuoteBillingToTable = async (
         }
 
         if (jobType === "deinstall") {
+          const annuityEndDate = item?.annuity_end_date;
+          if (annuityEndDate) {
+            const endDate = new Date(annuityEndDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (endDate > today) {
+              continue;
+            }
+          }
           columnUpdates[column] = 0;
           continue;
         }

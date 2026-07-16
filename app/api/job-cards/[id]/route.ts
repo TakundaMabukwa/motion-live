@@ -318,7 +318,7 @@ export async function PATCH(
     const READ_ONLY_COLUMNS = new Set([
       'id', 'created_at', 'created_by', 'updated_at', 'updated_by',
       'parts_required', 'equipment_used', 'before_photos', 'after_photos',
-      'quotation_products', 'quotation_number', 'quote_status',
+      'quotation_number', 'quote_status',
       'is_invoiced', 'invoice_number', 'invoice_date',
       'annuity_multiplier', 'annuity_amount', 'annuity_date',
       'escalation_role', 'escalation_notes',
@@ -364,7 +364,6 @@ export async function PATCH(
     delete updateData.deduct_tech_stock;
     delete updateData.parts_required;
     delete updateData.equipment_used;
-    delete updateData.quotation_products;
     delete updateData.before_photos;
     delete updateData.after_photos;
     let pendingTechStockUpdates: Array<{
