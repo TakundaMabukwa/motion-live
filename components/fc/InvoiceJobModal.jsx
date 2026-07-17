@@ -197,6 +197,45 @@ const getAnnuityMultiplier = (job) => {
   return 1;
 };
 
+const buildInvoiceLineItems = (job) => {
+  const products = parseQuotationProducts(job?.quotation_products);
+  const annuityMultiplier = getAnnuityMultiplier(job);
+  const rows = [];
+  for (const p of products) {
+    if (!p || typeof p !== "object") continue;
+    const qty = Math.max(1, toNumber(p.quantity) || 1);
+    const cash = toNumber(p.cash_price) || toNumber(p.cash_gross);
+    const rental = (toNumber(p.rental_price) || toNumber(p.rental_gross)) * annuityMultiplier;
+    const sub = (toNumber(p.subscription_price) || toNumber(p.subscription_gross)) * annuityMultiplier;
+    const install = toNumber(p.installation_price) || toNumber(p.installation_gross);
+    const deinstall = toNumber(p.de_installation_price) || toNumber(p.de_installation_gross);
+    const unitPrice = cash + install + deinstall;
+    const productName = String(p.name || p.description || p.product_name || "");
+    const productType = String(p.type || p.category || "");
+    if (unitPrice > 0) {
+      const vatAmount = unitPrice * 0.15;
+      rows.push({ description: productName, quantity: qty, unit_price: unitPrice, vat_amount: vatAmount, total_incl: (unitPrice + vatAmount) * qty, type: productType });
+    }
+    if (rental > 0) {
+      const vatAmount = rental * 0.15;
+      rows.push({ description: `${productName} - Rental`, quantity: qty, unit_price: rental, vat_amount: vatAmount, total_incl: (rental + vatAmount) * qty, type: productType, rental_amount: rental, annuity_multiplier: annuityMultiplier });
+    }
+    if (sub > 0) {
+      const vatAmount = sub * 0.15;
+      rows.push({ description: `${productName} - Subscription`, quantity: qty, unit_price: sub, vat_amount: vatAmount, total_incl: (sub + vatAmount) * qty, type: productType, subscription_amount: sub, annuity_multiplier: annuityMultiplier });
+    }
+  }
+  if (rows.length === 0) {
+    const totalAmt = toNumber(job?.quotation_total_amount);
+    const vatAmt = totalAmt * 0.15;
+    rows.push({ description: job?.job_description || job?.job_type || "Job service", quantity: 1, unit_price: totalAmt, vat_amount: vatAmt, total_incl: totalAmt + vatAmt, type: job?.job_type || "" });
+  }
+  const subtotal = rows.reduce((s, r) => s + (toNumber(r.unit_price) * r.quantity), 0);
+  const vat = rows.reduce((s, r) => s + toNumber(r.vat_amount), 0);
+  const total = rows.reduce((s, r) => s + toNumber(r.total_incl), 0);
+  return { lineItems: rows, totals: { subtotal, vat, total } };
+};
+
 const getInvoiceVehicles = (job) => {
   const products = parseQuotationProducts(job?.quotation_products);
   const plates = products.map((product) => product?.vehicle_plate).filter((plate) => typeof plate === "string" && plate.trim().length > 0).map((plate) => plate.trim());
@@ -821,7 +860,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
       const jobForVehicleSync = effectiveAccountNumber ? { ...effectiveJob, new_account_number: effectiveAccountNumber } : effectiveJob;
 
-      const invoicePreview = buildCompletedJobInvoiceView(effectiveCostCenterInfo);
+      const { lineItems, totals } = buildInvoiceLineItems(effectiveJob);
 
       const invoiceCreateResponse = await fetch("/api/fc/jobs/generate-invoice", {
         method: "POST",
@@ -829,6 +868,8 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         body: JSON.stringify({
           jobCardId: effectiveJob.id,
           invoiceDate: billingInvoiceDate,
+          lineItems,
+          totals,
         }),
       });
       const invoiceCreateResult = await invoiceCreateResponse.json().catch(() => ({}));
