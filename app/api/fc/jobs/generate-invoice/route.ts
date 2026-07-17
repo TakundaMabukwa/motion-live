@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createAtomicInvoice } from "@/lib/server/invoice-number-audit";
 
 const toCurrency = (v: unknown) => Number(v || 0);
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
       lineItems,
     });
 
-    // Update job card billing_statuses
+    // Update job card billing_statuses using service client (user client may be blocked by RLS)
     const existingBilling = jobCard.billing_statuses && typeof jobCard.billing_statuses === "object"
       ? jobCard.billing_statuses
       : {};
@@ -191,7 +192,12 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    await supabase
+    const serviceSupabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    await serviceSupabase
       .from("job_cards")
       .update({
         billing_statuses: updatedBilling,
