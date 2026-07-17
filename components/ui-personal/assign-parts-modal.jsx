@@ -8,6 +8,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -186,6 +191,10 @@ export default function AssignPartsModal({
   const [modalStockOwner, setModalStockOwner] = useState(stockOwner);
   const [visibleCount, setVisibleCount] = useState(120);
   const [localClientOptions, setLocalClientOptions] = useState(clientOptions);
+  const [returnPartKey, setReturnPartKey] = useState(null);
+  const [returnBucket, setReturnBucket] = useState("");
+  const [returnOwner, setReturnOwner] = useState("");
+  const [returning, setReturning] = useState(false);
   const dedupedTechnicianOptions = useMemo(() => {
     const map = new Map();
     technicianOptions.forEach((tech) => {
@@ -682,6 +691,92 @@ export default function AssignPartsModal({
         if (exists) return prev;
         return [...prev, restoredItem];
       });
+    }
+  };
+
+  const handleReturnPart = async () => {
+    const part = selectedParts.find(
+      (p) => String(p.selection_key || "").trim() === String(returnPartKey || "").trim(),
+    );
+    if (!part || !returnBucket) return;
+
+    setReturning(true);
+    try {
+      let ownerPayload = {};
+      if (returnBucket === "client") {
+        const selected = localClientOptions.find(
+          (c) => String(c.cost_code || "").trim() === String(returnOwner || "").trim(),
+        );
+        ownerPayload = {
+          client_code: selected?.client_code || "",
+          cost_code: selected?.cost_code || returnOwner,
+        };
+      } else if (returnBucket === "technician") {
+        ownerPayload = { technician_email: returnOwner };
+      }
+
+      const response = await fetch(`/api/job-cards/${jobCard.id}/return-part`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          part: {
+            serial_number: part.serial_number,
+            stock_id: part.stock_id,
+            code: part.code,
+            description: part.description,
+            supplier: part.supplier,
+            quantity: part.quantity,
+          },
+          target_bucket: returnBucket,
+          owner: ownerPayload,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to return part");
+      }
+
+      // Remove from selectedParts
+      setSelectedParts((prev) =>
+        prev.filter(
+          (p) => String(p.selection_key || "").trim() !== String(returnPartKey || "").trim(),
+        ),
+      );
+
+      // Restore to available list if source matches current view
+      const source = String(part.source || "").trim().toLowerCase();
+      if (source === String(modalStockSource || "").trim().toLowerCase()) {
+        setAllStockItems((prev) => {
+          const restoredItem = {
+            id: part.serial_number || part.stock_id || "",
+            stock_id: part.stock_id,
+            row_id: part.row_id || "",
+            description: part.description || "",
+            code: part.code || "",
+            supplier: part.supplier || "",
+            quantity: part.quantity || 1,
+            serial_number: part.serial_number || "",
+            category_code: part.code || "",
+            category_description: part.description || part.code || "",
+            status: "IN STOCK",
+          };
+          const exists = prev.some(
+            (item) => (item.serial_number || item.stock_id) === (restoredItem.serial_number || restoredItem.stock_id),
+          );
+          if (exists) return prev;
+          return [...prev, restoredItem];
+        });
+      }
+
+      toast.success(`Part returned to ${returnBucket} stock`);
+      setReturnPartKey(null);
+      setReturnBucket("");
+      setReturnOwner("");
+    } catch (error) {
+      toast.error(error.message || "Failed to return part");
+    } finally {
+      setReturning(false);
     }
   };
 
@@ -1404,16 +1499,199 @@ export default function AssignPartsModal({
                               <span className="font-semibold text-sm">
                                 {part.quantity}
                               </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  removePart(part.selection_key)
-                                }
-                                className="text-red-500 hover:text-red-700 p-0 h-6 w-6"
+                              <Popover
+                                open={returnPartKey === part.selection_key}
+                                onOpenChange={(open) => {
+                                  if (!open) {
+                                    setReturnPartKey(null);
+                                    setReturnBucket("");
+                                    setReturnOwner("");
+                                  } else {
+                                    setReturnPartKey(part.selection_key);
+                                    setReturnBucket("");
+                                    setReturnOwner("");
+                                  }
+                                }}
                               >
-                                <X className="w-3 h-3" />
-                              </Button>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-500 hover:text-red-700 p-0 h-6 w-6"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-72 p-3" align="end">
+                                  {!returnBucket ? (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-gray-700">Return to:</p>
+                                      <div className="flex flex-col gap-1">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="justify-start text-xs h-7"
+                                          onClick={() => setReturnBucket("soltrack")}
+                                        >
+                                          <Package className="w-3 h-3 mr-1" />
+                                          Soltrack Stock
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="justify-start text-xs h-7"
+                                          onClick={() => setReturnBucket("client")}
+                                        >
+                                          <User className="w-3 h-3 mr-1" />
+                                          Client Stock
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="justify-start text-xs h-7"
+                                          onClick={() => setReturnBucket("technician")}
+                                        >
+                                          <Wrench className="w-3 h-3 mr-1" />
+                                          Technician Stock
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : returnBucket === "soltrack" ? (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-gray-700">
+                                        Return to Soltrack stock?
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        S/N: {part.serial_number}
+                                      </p>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          size="sm"
+                                          className="h-7 text-xs flex-1"
+                                          disabled={returning}
+                                          onClick={handleReturnPart}
+                                        >
+                                          {returning ? "Returning..." : "Confirm"}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={() => { setReturnBucket(""); setReturnOwner(""); }}
+                                        >
+                                          Back
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : returnBucket === "client" && !returnOwner ? (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-gray-700">Select client:</p>
+                                      <select
+                                        className="w-full border rounded px-2 py-1 text-xs"
+                                        value=""
+                                        onChange={(e) => setReturnOwner(e.target.value)}
+                                      >
+                                        <option value="">Choose client...</option>
+                                        {localClientOptions.map((c) => (
+                                          <option key={c.cost_code} value={c.cost_code}>
+                                            {c.client_name || c.cost_code}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={() => { setReturnBucket(""); setReturnOwner(""); }}
+                                        >
+                                          Back
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : returnBucket === "client" && returnOwner ? (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-gray-700">
+                                        Return to client stock?
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {returnOwner} — S/N: {part.serial_number}
+                                      </p>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          size="sm"
+                                          className="h-7 text-xs flex-1"
+                                          disabled={returning}
+                                          onClick={handleReturnPart}
+                                        >
+                                          {returning ? "Returning..." : "Confirm"}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={() => { setReturnBucket(""); setReturnOwner(""); }}
+                                        >
+                                          Back
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : returnBucket === "technician" && !returnOwner ? (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-gray-700">Select technician:</p>
+                                      <select
+                                        className="w-full border rounded px-2 py-1 text-xs"
+                                        value=""
+                                        onChange={(e) => setReturnOwner(e.target.value)}
+                                      >
+                                        <option value="">Choose technician...</option>
+                                        {dedupedTechnicianOptions.map((t) => (
+                                          <option key={t.technician_email} value={t.technician_email}>
+                                            {t.technician_name || t.technician_email}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={() => { setReturnBucket(""); setReturnOwner(""); }}
+                                        >
+                                          Back
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <p className="text-xs font-medium text-gray-700">
+                                        Return to technician stock?
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {returnOwner} — S/N: {part.serial_number}
+                                      </p>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          size="sm"
+                                          className="h-7 text-xs flex-1"
+                                          disabled={returning}
+                                          onClick={handleReturnPart}
+                                        >
+                                          {returning ? "Returning..." : "Confirm"}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={() => { setReturnBucket(""); setReturnOwner(""); }}
+                                        >
+                                          Back
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </PopoverContent>
+                              </Popover>
                             </div>
                           </div>
                         ))}
