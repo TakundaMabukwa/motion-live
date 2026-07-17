@@ -367,6 +367,7 @@ const isOnceOffItemJob = (job) => {
 
 export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, editedProducts: externalEditedProducts }) {
   const latestJobRef = useRef(null);
+  const previewSnapshotRef = useRef({ rows: [], totals: null });
   const [refreshKey, setRefreshKey] = useState(0);
   const [billingInvoiceDate, setBillingInvoiceDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [invoiceFormData, setInvoiceFormData] = useState({
@@ -887,9 +888,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
       const jobForVehicleSync = effectiveAccountNumber ? { ...effectiveJob, new_account_number: effectiveAccountNumber } : effectiveJob;
 
-      const invoicePreview = buildCompletedJobInvoiceView(effectiveCostCenterInfo);
-      const lineItems = invoicePreview?.rows || [];
-      const totals = invoicePreview?.totals || null;
+      const snapshot = previewSnapshotRef.current;
+      const lineItems = snapshot?.rows || [];
+      const previewTotals = snapshot?.totals || null;
 
       const invoiceCreateResponse = await fetch("/api/fc/jobs/generate-invoice", {
         method: "POST",
@@ -898,7 +899,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           jobCardId: effectiveJob.id,
           invoiceDate: billingInvoiceDate,
           lineItems,
-          totals,
+          totals: previewTotals,
         }),
       });
       const invoiceCreateResult = await invoiceCreateResponse.json().catch(() => ({}));
@@ -1055,6 +1056,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
   const invoiceView = buildCompletedJobInvoiceView();
   const invoiceHtml = buildCompletedJobInvoiceHtml(invoiceView);
   const totals = getInvoiceTotals(job, externalEditedProducts);
+
+  useEffect(() => {
+    if (invoiceView?.rows) {
+      previewSnapshotRef.current = { rows: invoiceView.rows, totals: invoiceView.totals || null };
+    }
+  }, [invoiceView?.rows, invoiceView?.totals]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { resetInvoiceForm(); if (onComplete) onComplete(); } onOpenChange(o); }}>
