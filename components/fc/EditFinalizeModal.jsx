@@ -488,6 +488,7 @@ export default function EditFinalizeModal({ job, open, onOpenChange, onComplete 
         open={showFinalInvoiceModal}
         onOpenChange={setShowFinalInvoiceModal}
         onComplete={handleRefreshJobsAfterInvoice}
+        editedProducts={editableProducts}
       />
     </>
   );
