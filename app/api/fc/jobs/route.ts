@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
     }
     console.log(`[FC Jobs] Found ${invoicedJobNumbers.length} invoiced job numbers to exclude:`, invoicedJobNumbers);
 
-    // Step 2: Fetch jobs, excluding invoiced job_numbers at the database level
+    // Step 2: Fetch jobs
     let query = serviceSupabase
       .from("job_cards")
       .select("*")
@@ -154,11 +154,8 @@ export async function GET(request: NextRequest) {
       query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
     }
 
-    // Exclude job_numbers that exist in the invoices table
-    if (invoicedJobNumbers.length > 0) {
-      const quoted = invoicedJobNumbers.map((n) => `"${n.replace(/"/g, '""')}"`).join(",");
-      query = query.not("job_number", "in", `(${quoted})`);
-    }
+    // Build Set for JS-side filtering (not.in breaks with 1000+ values)
+    const invoicedSet = new Set(invoicedJobNumbers.map((n) => n.trim().toLowerCase()));
 
     // Fetch in batches — Supabase PostgREST caps at 1000 rows per request
     const BATCH = 1000;
@@ -182,6 +179,10 @@ export async function GET(request: NextRequest) {
       String(value || "").trim().toLowerCase();
 
     const allJobs = jobs.filter((job) => {
+      // Exclude jobs whose job_number exists in the invoices table
+      const jobNum = normalizeToken(job.job_number);
+      if (jobNum && invoicedSet.has(jobNum)) return false;
+
       // Exclude jobs with status "invoiced"
       const s = normalizeToken(job.status);
       const js = normalizeToken(job.job_status);
