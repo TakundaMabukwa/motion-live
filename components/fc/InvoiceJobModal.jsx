@@ -822,19 +822,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const jobForVehicleSync = effectiveAccountNumber ? { ...effectiveJob, new_account_number: effectiveAccountNumber } : effectiveJob;
 
       const invoicePreview = buildCompletedJobInvoiceView(effectiveCostCenterInfo);
-      const lineItems = (invoicePreview?.rows || []).map((row) => ({
-        previous_reg: row.previousReg, new_reg: row.newReg, fleet_number: row.fleetNumber || "-", item_code: row.itemCode,
-        description: row.description, comments: row.comments, quantity: row.qty,
-        unit_price: row.unitPrice, vat_percent: row.vatPercent, vat_amount: row.vatAmount, total_incl: row.totalIncl,
-      }));
+
       const invoiceCreateResponse = await fetch("/api/fc/jobs/generate-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jobCardId: effectiveJob.id,
           invoiceDate: billingInvoiceDate,
-          lineItems,
-          totals: invoicePreview?.totals || null,
         }),
       });
       const invoiceCreateResult = await invoiceCreateResponse.json().catch(() => ({}));
