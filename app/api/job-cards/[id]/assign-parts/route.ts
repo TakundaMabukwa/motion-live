@@ -803,8 +803,40 @@ export async function PUT(request: NextRequest, { params }) {
     }
 
     // STEP 3: Update job card (only after inventory deletes succeeded)
+    // Merge incoming parts with existing DB parts — never lose existing parts
+    const freshJobCard = await supabase
+      .from('job_cards')
+      .select('parts_required')
+      .eq('id', jobId)
+      .single();
+    const dbExistingParts = Array.isArray(freshJobCard?.data?.parts_required)
+      ? freshJobCard.data.parts_required
+      : [];
+    const newSerials = new Set(
+      persistedParts
+        .map((p: Record<string, unknown>) =>
+          String(p?.serial_number ?? '').trim().toLowerCase(),
+        )
+        .filter(Boolean),
+    );
+    const newStockIds = new Set(
+      persistedParts
+        .map((p: Record<string, unknown>) =>
+          String(p?.stock_id ?? '').trim().toLowerCase(),
+        )
+        .filter(Boolean),
+    );
+    const unmatchedExisting = dbExistingParts.filter((p: Record<string, unknown>) => {
+      const serial = String(p?.serial_number ?? '').trim().toLowerCase();
+      const stockId = String(p?.stock_id ?? '').trim().toLowerCase();
+      if (serial && newSerials.has(serial)) return false;
+      if (stockId && newStockIds.has(stockId)) return false;
+      return true;
+    });
+    const mergedParts = [...unmatchedExisting, ...persistedParts];
+
     const updateData = {
-      parts_required: persistedParts,
+      parts_required: mergedParts,
       qr_code: qrCodeUrl,
       updated_at: new Date().toISOString(),
       updated_by: user.id
