@@ -81,13 +81,13 @@ export async function POST(request: NextRequest) {
     let totalAmount: number;
 
     if (clientLineItems && clientLineItems.length > 0) {
+      // Store line items exactly as the client sent them (preview rows)
       lineItems = clientLineItems.map((item: Record<string, unknown>) => ({
-        description: item.description || item.item_code || "Item",
+        ...item,
         quantity: Math.max(1, Number(item.quantity) || Number(item.qty) || 1),
         unit_price: toCurrency(item.unit_price ?? item.unitPrice),
         vat_amount: toCurrency(item.vat_amount ?? item.vatAmount),
         total_incl: toCurrency(item.total_incl ?? item.totalIncl),
-        type: item.type || "",
       }));
       if (clientTotals) {
         subtotal = toCurrency(clientTotals.subtotal);

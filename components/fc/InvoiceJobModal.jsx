@@ -197,32 +197,59 @@ const getAnnuityMultiplier = (job) => {
   return 1;
 };
 
-const buildInvoiceLineItems = (job) => {
+const buildInvoiceLineItems = (job, annuityKeys, annuityItems) => {
   const products = parseQuotationProducts(job?.quotation_products);
   const annuityMultiplier = getAnnuityMultiplier(job);
+  const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+  const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
+  const isReInstall = jobSubType === "reinstall";
+  const isInstallJob = jobType.includes("install") || jobType === "installation";
   const rows = [];
-  for (const p of products) {
-    if (!p || typeof p !== "object") continue;
-    const qty = Math.max(1, toNumber(p.quantity) || 1);
-    const cash = toNumber(p.cash_price) || toNumber(p.cash_gross);
-    const rental = (toNumber(p.rental_price) || toNumber(p.rental_gross)) * annuityMultiplier;
-    const sub = (toNumber(p.subscription_price) || toNumber(p.subscription_gross)) * annuityMultiplier;
-    const install = toNumber(p.installation_price) || toNumber(p.installation_gross);
-    const deinstall = toNumber(p.de_installation_price) || toNumber(p.de_installation_gross);
-    const unitPrice = cash + install + deinstall;
-    const productName = String(p.name || p.description || p.product_name || "");
-    const productType = String(p.type || p.category || "");
-    if (unitPrice > 0) {
-      const vatAmount = unitPrice * 0.15;
-      rows.push({ description: productName, quantity: qty, unit_price: unitPrice, vat_amount: vatAmount, total_incl: (unitPrice + vatAmount) * qty, type: productType });
+  const seenProductKeys = new Set();
+  for (const product of products) {
+    if (!product || typeof product !== "object") continue;
+    const productKey = String(product?.name || product?.item_code || product?.code || "").trim().toLowerCase();
+    if (productKey && seenProductKeys.has(productKey)) continue;
+    if (productKey) seenProductKeys.add(productKey);
+    const chargeLines = getProductChargeLines(product, job);
+    for (const cl of chargeLines) {
+      if (toNumber(cl.unitPrice) < 0) continue;
+      const qty = Math.max(1, toNumber(cl.qty) || 1);
+      const subtotal = toNumber(cl.unitPrice) * qty;
+      const vat = Number((subtotal * VAT_RATE).toFixed(2));
+      const total = Number((subtotal + vat).toFixed(2));
+      const productName = String(product?.name || product?.item_code || "").trim();
+      const lineLabel = productName ? `${productName} - ${cl.label}` : cl.label;
+      const description = String(product?.description || "").trim() || productName || lineLabel || product?.category || "-";
+      rows.push({ description, quantity: qty, unit_price: toNumber(cl.unitPrice), vat_amount: vat, total_incl: total, type: String(product?.type || product?.category || "") });
     }
-    if (rental > 0) {
-      const vatAmount = rental * 0.15;
-      rows.push({ description: `${productName} - Rental`, quantity: qty, unit_price: rental, vat_amount: vatAmount, total_incl: (rental + vatAmount) * qty, type: productType, rental_amount: rental, annuity_multiplier: annuityMultiplier });
-    }
-    if (sub > 0) {
-      const vatAmount = sub * 0.15;
-      rows.push({ description: `${productName} - Subscription`, quantity: qty, unit_price: sub, vat_amount: vatAmount, total_incl: (sub + vatAmount) * qty, type: productType, subscription_amount: sub, annuity_multiplier: annuityMultiplier });
+  }
+  if (isInstallJob && !isReInstall) {
+    const selectedKeys = new Set(annuityKeys || []);
+    const items = (annuityItems || []).filter((item) => selectedKeys.has(item.key));
+    for (const item of items) {
+      const qty = Math.max(1, toNumber(item.quantity) || 1);
+      const rentalAmt = toNumber(item.rentalAmount);
+      const subAmt = toNumber(item.subscriptionAmount);
+      if (rentalAmt > 0) {
+        const unitPrice = rentalAmt * annuityMultiplier;
+        const subtotal = unitPrice * qty;
+        const vat = Number((subtotal * VAT_RATE).toFixed(2));
+        rows.push({ description: item.name || "Annuity Item", quantity: qty, unit_price: unitPrice, vat_amount: vat, total_incl: Number((subtotal + vat).toFixed(2)), type: "", rental_amount: rentalAmt, annuity_multiplier: annuityMultiplier });
+      }
+      if (subAmt > 0) {
+        const unitPrice = subAmt * annuityMultiplier;
+        const subtotal = unitPrice * qty;
+        const vat = Number((subtotal * VAT_RATE).toFixed(2));
+        rows.push({ description: item.name || "Annuity Item", quantity: qty, unit_price: unitPrice, vat_amount: vat, total_incl: Number((subtotal + vat).toFixed(2)), type: "", subscription_amount: subAmt, annuity_multiplier: annuityMultiplier });
+      }
+      if (rentalAmt <= 0 && subAmt <= 0) {
+        const fallback = rentalAmt || subAmt;
+        const unitPrice = fallback * annuityMultiplier;
+        const subtotal = unitPrice * qty;
+        const vat = Number((subtotal * VAT_RATE).toFixed(2));
+        rows.push({ description: item.name || "Annuity Item", quantity: qty, unit_price: unitPrice, vat_amount: vat, total_incl: Number((subtotal + vat).toFixed(2)), type: "" });
+      }
     }
   }
   if (rows.length === 0) {
@@ -860,7 +887,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
       const jobForVehicleSync = effectiveAccountNumber ? { ...effectiveJob, new_account_number: effectiveAccountNumber } : effectiveJob;
 
-      const { lineItems, totals } = buildInvoiceLineItems(effectiveJob);
+      const invoicePreview = buildCompletedJobInvoiceView(effectiveCostCenterInfo);
+      const lineItems = invoicePreview?.rows || [];
+      const totals = invoicePreview?.totals || null;
 
       const invoiceCreateResponse = await fetch("/api/fc/jobs/generate-invoice", {
         method: "POST",
