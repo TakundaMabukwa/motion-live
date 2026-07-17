@@ -30,6 +30,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const bucket = normalizeToken(target_bucket);
+    const normalizedSerial = normalizeToken(serialNumber);
+    const normalizedStockId = normalizeToken(part?.stock_id);
 
     // ── Soltrack: insert into inventory_items ──
     if (bucket === "soltrack") {
@@ -106,8 +108,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         returned_at: new Date().toISOString(),
       };
 
-      const normalizedSerial = normalizeToken(serialNumber);
-      const normalizedStockId = normalizeToken(part?.stock_id);
       const alreadyExists = existingParts.some((p: any) => {
         const ps = normalizeToken(p?.serial_number);
         const psid = normalizeToken(p?.stock_id);
