@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const jobCardId = String(body.jobCardId || "").trim();
     const invoiceDate = String(body.invoiceDate || "").trim();
+    const clientLineItems = Array.isArray(body.lineItems) ? body.lineItems : null;
+    const clientTotals = body.totals && typeof body.totals === "object" ? body.totals : null;
 
     if (!jobCardId) {
       return NextResponse.json({ error: "jobCardId is required" }, { status: 400 });
@@ -71,93 +73,77 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Build line items from quotation_products
-    const products = parseProducts(jobCard.quotation_products).filter(
-      (p: Record<string, unknown>) => p && typeof p === "object",
-    );
+    // Use client-provided line items if available, otherwise rebuild from products
+    let lineItems: Record<string, unknown>[];
+    let subtotal: number;
+    let totalVat: number;
+    let totalAmount: number;
 
-    const annuityMultiplier = getAnnuityMultiplier(jobCard as Record<string, unknown>);
-
-    const lineItems = products.flatMap((p: Record<string, unknown>) => {
-      const qty = Math.max(1, Number(p.quantity) || 1);
-      const cash = toCurrency(p.cash_price) || toCurrency(p.cash_gross);
-      const rental = (toCurrency(p.rental_price) || toCurrency(p.rental_gross)) * annuityMultiplier;
-      const sub = (toCurrency(p.subscription_price) || toCurrency(p.subscription_gross)) * annuityMultiplier;
-      const install = toCurrency(p.installation_price) || toCurrency(p.installation_gross);
-      const deinstall = toCurrency(p.de_installation_price) || toCurrency(p.de_installation_gross);
-      const unitPrice = cash + install + deinstall;
-      const productName = String(p.name || p.description || p.product_name || "");
-      const productType = String(p.type || p.category || "");
-      const rows: Record<string, unknown>[] = [];
-      if (unitPrice > 0) {
-        const vatAmount = unitPrice * 0.15;
-        rows.push({
-          description: productName,
-          quantity: qty,
-          unit_price: unitPrice,
-          vat_amount: vatAmount,
-          total_incl: (unitPrice + vatAmount) * qty,
-          type: productType,
-        });
+    if (clientLineItems && clientLineItems.length > 0) {
+      lineItems = clientLineItems.map((item: Record<string, unknown>) => ({
+        description: item.description || item.item_code || "Item",
+        quantity: Math.max(1, Number(item.quantity) || Number(item.qty) || 1),
+        unit_price: toCurrency(item.unit_price ?? item.unitPrice),
+        vat_amount: toCurrency(item.vat_amount ?? item.vatAmount),
+        total_incl: toCurrency(item.total_incl ?? item.totalIncl),
+        type: item.type || "",
+      }));
+      if (clientTotals) {
+        subtotal = toCurrency(clientTotals.subtotal);
+        totalVat = toCurrency(clientTotals.vat ?? clientTotals.vatAmount);
+        totalAmount = toCurrency(clientTotals.total ?? clientTotals.totalIncl);
+      } else {
+        subtotal = lineItems.reduce((s, item) => s + (toCurrency(item.unit_price) * toNumber(item.quantity)), 0);
+        totalVat = lineItems.reduce((s, item) => s + toCurrency(item.vat_amount), 0);
+        totalAmount = lineItems.reduce((s, item) => s + toCurrency(item.total_incl), 0);
       }
-      if (rental > 0) {
-        const vatAmount = rental * 0.15;
-        rows.push({
-          description: `${productName} - Rental`,
-          quantity: qty,
-          unit_price: rental,
-          vat_amount: vatAmount,
-          total_incl: (rental + vatAmount) * qty,
-          type: productType,
-          rental_amount: rental,
-          annuity_multiplier: annuityMultiplier,
-        });
-      }
-      if (sub > 0) {
-        const vatAmount = sub * 0.15;
-        rows.push({
-          description: `${productName} - Subscription`,
-          quantity: qty,
-          unit_price: sub,
-          vat_amount: vatAmount,
-          total_incl: (sub + vatAmount) * qty,
-          type: productType,
-          subscription_amount: sub,
-          annuity_multiplier: annuityMultiplier,
-        });
-      }
-      if (rows.length === 0) {
-        const fallbackAmt = unitPrice || rental || sub;
-        const vatAmount = fallbackAmt * 0.15;
-        rows.push({
-          description: productName,
-          quantity: qty,
-          unit_price: fallbackAmt,
-          vat_amount: vatAmount,
-          total_incl: (fallbackAmt + vatAmount) * qty,
-          type: productType,
-        });
-      }
-      return rows;
-    });
-
-    // If no products, create a fallback line item
-    if (lineItems.length === 0) {
-      const totalAmt = toCurrency(jobCard.quotation_total_amount);
-      const vatAmt = totalAmt * 0.15;
-      lineItems.push({
-        description: jobCard.job_description || jobCard.job_type || "Job service",
-        quantity: 1,
-        unit_price: totalAmt,
-        vat_amount: vatAmt,
-        total_incl: totalAmt + vatAmt,
-        type: jobCard.job_type || "",
+    } else {
+      // Build line items from quotation_products (fallback when no client items)
+      const products = parseProducts(jobCard.quotation_products).filter(
+        (p: Record<string, unknown>) => p && typeof p === "object",
+      );
+      const annuityMultiplier = getAnnuityMultiplier(jobCard as Record<string, unknown>);
+      const generatedLines = products.flatMap((p: Record<string, unknown>) => {
+        const qty = Math.max(1, Number(p.quantity) || 1);
+        const cash = toCurrency(p.cash_price) || toCurrency(p.cash_gross);
+        const rental = (toCurrency(p.rental_price) || toCurrency(p.rental_gross)) * annuityMultiplier;
+        const sub = (toCurrency(p.subscription_price) || toCurrency(p.subscription_gross)) * annuityMultiplier;
+        const install = toCurrency(p.installation_price) || toCurrency(p.installation_gross);
+        const deinstall = toCurrency(p.de_installation_price) || toCurrency(p.de_installation_gross);
+        const unitPrice = cash + install + deinstall;
+        const productName = String(p.name || p.description || p.product_name || "");
+        const productType = String(p.type || p.category || "");
+        const rows: Record<string, unknown>[] = [];
+        if (unitPrice > 0) {
+          const vatAmount = unitPrice * 0.15;
+          rows.push({ description: productName, quantity: qty, unit_price: unitPrice, vat_amount: vatAmount, total_incl: (unitPrice + vatAmount) * qty, type: productType });
+        }
+        if (rental > 0) {
+          const vatAmount = rental * 0.15;
+          rows.push({ description: `${productName} - Rental`, quantity: qty, unit_price: rental, vat_amount: vatAmount, total_incl: (rental + vatAmount) * qty, type: productType });
+        }
+        if (sub > 0) {
+          const vatAmount = sub * 0.15;
+          rows.push({ description: `${productName} - Subscription`, quantity: qty, unit_price: sub, vat_amount: vatAmount, total_incl: (sub + vatAmount) * qty, type: productType });
+        }
+        if (rows.length === 0) {
+          const fallbackAmt = unitPrice || rental || sub;
+          const vatAmount = fallbackAmt * 0.15;
+          rows.push({ description: productName, quantity: qty, unit_price: fallbackAmt, vat_amount: vatAmount, total_incl: (fallbackAmt + vatAmount) * qty, type: productType });
+        }
+        return rows;
       });
+      lineItems = generatedLines.length > 0 ? generatedLines : [{
+        description: jobCard.job_description || jobCard.job_type || "Job service",
+        quantity: 1, unit_price: toCurrency(jobCard.quotation_total_amount),
+        vat_amount: toCurrency(jobCard.quotation_total_amount) * 0.15,
+        total_incl: toCurrency(jobCard.quotation_total_amount) * 1.15,
+        type: jobCard.job_type || "",
+      }];
+      subtotal = lineItems.reduce((s, item) => s + (toCurrency(item.unit_price) * toNumber(item.quantity)), 0);
+      totalVat = lineItems.reduce((s, item) => s + toCurrency(item.vat_amount), 0);
+      totalAmount = lineItems.reduce((s, item) => s + toCurrency(item.total_incl), 0);
     }
-
-    const subtotal = lineItems.reduce((s, item) => s + (item.unit_price * item.quantity), 0);
-    const totalVat = lineItems.reduce((s, item) => s + (item.vat_amount * item.quantity), 0);
-    const totalAmount = lineItems.reduce((s, item) => s + item.total_incl, 0);
 
     // Resolve invoice date
     const resolvedInvoiceDate = invoiceDate

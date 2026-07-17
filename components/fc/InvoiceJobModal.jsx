@@ -833,6 +833,8 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         body: JSON.stringify({
           jobCardId: effectiveJob.id,
           invoiceDate: billingInvoiceDate,
+          lineItems,
+          totals: invoicePreview?.totals || null,
         }),
       });
       const invoiceCreateResult = await invoiceCreateResponse.json().catch(() => ({}));
