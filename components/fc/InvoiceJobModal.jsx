@@ -81,8 +81,7 @@ const isLabourProduct = (p) => {
 
 const isAnnuityProduct = (product) =>
   !isLabourProduct(product) &&
-  (toNumber(product?.rental_price) > 0 || toNumber(product?.rental_gross) > 0 ||
-   toNumber(product?.subscription_price) > 0 || toNumber(product?.subscription_gross) > 0);
+  (toNumber(product?.rental_price) > 0 || toNumber(product?.subscription_price) > 0);
 
 const getAnnuitySelectionKey = (product) => {
   const parts = [product?.id, product?.code, product?.item_code, product?.name, product?.description, product?.type, product?.category, product?.vehicle_plate, product?.vehicle_id, product?.rental_price, product?.rental_gross, product?.subscription_price, product?.subscription_gross, product?.quantity];
@@ -99,8 +98,8 @@ const getAnnuitySelectionItems = (job, overrideProducts) => {
   const products = overrideProducts || parseQuotationProducts(job?.quotation_products);
   return products.map((product, index) => {
     if (isLabourProduct(product)) return null;
-    const rentalAmount = toNumber(product?.rental_price) || toNumber(product?.rental_gross);
-    const subscriptionAmount = toNumber(product?.subscription_price) || toNumber(product?.subscription_gross);
+    const rentalAmount = toNumber(product?.rental_price);
+    const subscriptionAmount = toNumber(product?.subscription_price);
     if (rentalAmount <= 0 && subscriptionAmount <= 0) return null;
     const quantity = Math.max(1, toNumber(product?.quantity) || 1);
     return {
@@ -117,20 +116,11 @@ const getAnnuitySelectionItems = (job, overrideProducts) => {
 
 const getProductUnitPrice = (product, options = {}) => {
   const { includeRecurring = true } = options;
-  const directPriceCandidates = includeRecurring
+  const candidates = includeRecurring
     ? [product?.unit_price, product?.subscription_price, product?.cash_price, product?.rental_price, product?.installation_price, product?.de_installation_price, product?.price]
     : [product?.unit_price, product?.cash_price, product?.installation_price, product?.de_installation_price, product?.price];
-  const directUnitPrice = directPriceCandidates.map(toNumber).find((price) => price > 0);
-  if (directUnitPrice) return directUnitPrice;
-  const totalPriceCandidates = includeRecurring
-    ? [product?.subscription_gross, product?.cash_gross, product?.rental_gross, product?.installation_gross, product?.de_installation_gross]
-    : [product?.cash_gross, product?.installation_gross, product?.de_installation_gross];
-  const totalPrice = totalPriceCandidates.map(toNumber).find((amount) => amount > 0) || 0;
-  if (totalPrice > 0) {
-    const qty = Math.max(1, toNumber(product?.quantity) || 1);
-    return totalPrice / qty;
-  }
-  return 0;
+  const found = candidates.map(toNumber).find((price) => price > 0);
+  return found || 0;
 };
 
 const getProductChargeLines = (product, job) => {
@@ -139,47 +129,27 @@ const getProductChargeLines = (product, job) => {
   const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
   const isReInstall = jobSubType === "reinstall";
   const lines = [];
-  const grossKeyMap = {
-    cash_price: "cash_gross",
-    installation_price: "installation_gross",
-    de_installation_price: "de_installation_gross",
-  };
-  const addLine = (priceKey, label, multiplier = 1) => {
-    const amount = toNumber(product?.[priceKey]) || toNumber(product?.[grossKeyMap[priceKey]]);
+  const addLine = (priceKey, label) => {
+    const amount = toNumber(product?.[priceKey]);
     if (amount <= 0) return;
-    const unitPrice = amount * Math.max(1, toNumber(multiplier) || 1);
-    lines.push({ key: priceKey, label, qty, unitPrice, subtotal: unitPrice * qty });
+    lines.push({ key: priceKey, label, qty, unitPrice: amount, subtotal: amount * qty });
   };
   const isDeinstall = jobType.includes("deinstall") || jobType.includes("de-install") || jobType.includes("decomm");
   if (isDeinstall) {
-    const oneTimeFields = ["cash_price","installation_price","de_installation_price"];
-    const totalUnitPrice = oneTimeFields.reduce((sum, f) => sum + toNumber(product?.[f]) || toNumber(product?.[grossKeyMap[f]]), 0);
-    lines.push({ key: "deinstall", label: "De-Installation", qty, unitPrice: totalUnitPrice, subtotal: totalUnitPrice * qty });
-    return lines;
-  }
-  if (isReInstall) {
-    addLine("installation_price", "Installation");
-    if (lines.length === 0) addLine("cash_price", "Item");
-    if (lines.length === 0) { addLine("price", "Price"); addLine("unit_price", "Unit Price"); }
-  } else {
     addLine("cash_price", "Cash");
     addLine("installation_price", "Installation");
     addLine("de_installation_price", "De-Installation");
+    return lines;
   }
-  if (lines.length === 0 && isLabourProduct(product)) {
-    const unitAmount = toNumber(product?.cash_price) || toNumber(product?.cash_gross) || toNumber(product?.unit_price) || toNumber(product?.price);
-    const amount = unitAmount > 0 ? unitAmount : (qty > 0 ? toNumber(product?.total_price) / qty : 0);
-    lines.push({ key: "labour", label: "Labour", qty, unitPrice: amount, subtotal: amount * qty });
+  if (isReInstall) {
+    addLine("cash_price", "Cash");
+    addLine("installation_price", "Installation");
+    addLine("de_installation_price", "De-Installation");
+    return lines;
   }
-  if (!isReInstall) {
-    if (lines.length === 0) { addLine("price", "Price"); addLine("unit_price", "Unit Price"); }
-    if (lines.length === 0) {
-      const fallbackUnitPrice = toNumber(product?.unit_price) || toNumber(product?.price) || toNumber(product?.cash_price) || toNumber(product?.cash_gross) || toNumber(product?.installation_price) || toNumber(product?.installation_gross) || toNumber(product?.de_installation_price) || toNumber(product?.de_installation_gross);
-      if (fallbackUnitPrice > 0) {
-        lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
-      }
-    }
-  }
+  addLine("cash_price", "Cash");
+  addLine("installation_price", "Installation");
+  addLine("de_installation_price", "De-Installation");
   return lines;
 };
 
@@ -300,16 +270,6 @@ const getLocalDateInputValue = (dateValue = new Date()) => {
   return localDate.toISOString().slice(0, 10);
 };
 
-const fetchLatestJobCard = async (job) => {
-  if (!job?.id) return job;
-  try {
-    const response = await fetch(`/api/job-cards/${encodeURIComponent(job.id)}`, { cache: "no-store" });
-    if (!response.ok) return job;
-    const latestJob = await response.json();
-    return latestJob?.id ? { ...job, ...latestJob } : job;
-  } catch { return job; }
-};
-
 const resolveAccountNumber = async (job) => {
   if (!job) return "";
   const existing = String(job?.new_account_number || "").trim();
@@ -368,7 +328,6 @@ const isOnceOffItemJob = (job) => {
 export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, editedProducts: externalEditedProducts }) {
   const latestJobRef = useRef(null);
   const previewSnapshotRef = useRef({ rows: [], totals: null });
-  const [refreshKey, setRefreshKey] = useState(0);
   const [billingInvoiceDate, setBillingInvoiceDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [invoiceFormData, setInvoiceFormData] = useState({
     clientName: "", clientEmail: "", clientPhone: "", clientAddress: "", paymentTerms: "30 days", dueDate: "", notes: "",
@@ -412,17 +371,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
       setBillingInvoiceDate(new Date().toLocaleDateString("en-CA"));
       latestJobRef.current = job;
-
-      // Re-fetch latest job from DB to ensure prices are up to date
-      fetchLatestJobCard(job).then((freshJob) => {
-        if (freshJob?.id) {
-          latestJobRef.current = freshJob;
-          const freshAnnuityItems = getAnnuitySelectionItems(freshJob, externalEditedProducts);
-          setAnnuitySelectableItems(freshAnnuityItems);
-          setSelectedAnnuityItemKeys(freshAnnuityItems.map((item) => item.key));
-          setRefreshKey((k) => k + 1);
-        }
-      });
 
       // Fetch cost center info in background for invoice preview
       const accountNumber = String(job?.new_account_number || "").trim();
