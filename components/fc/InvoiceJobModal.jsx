@@ -593,29 +593,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             totalIncl: Number((subtotal + vat).toFixed(2)),
           });
         }
-        if (rows.length === 0) {
-          const fallbackAmt = rentalAmt || subAmt;
-          const adjustedUnitPrice = fallbackAmt * annuityMultiplier;
-          const subtotal = adjustedUnitPrice * qty;
-          const vat = Number((subtotal * VAT_RATE).toFixed(2));
-          rows.push({
-            key: `annuity-item-${idx}`,
-            previousReg: hideRegistrationColumns ? "" : jobReg,
-            newReg: hideRegistrationColumns ? "" : jobReg,
-            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
-            itemCode: "Annuity",
-            description: item.name || "Annuity Item",
-            comments: annuityMultiplier > 1 ? `Annuity (${annuityMultiplier}x) - ${item.name}` : `Annuity - ${item.name}`,
-            qty,
-            unitPrice: adjustedUnitPrice,
-            vatPercent: "15.00%",
-            vatAmount: vat,
-            totalIncl: Number((subtotal + vat).toFixed(2)),
-          });
-        }
         return rows;
       });
-    const annuityRows = manualAnnuityRows;
+    const annuityRows = hasStoredLineItems ? [] : manualAnnuityRows;
     const rows = [...productRows, ...annuityRows];
     const totals = rows.reduce((acc, row) => {
       acc.subtotal += row.unitPrice * row.qty;
