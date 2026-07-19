@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, FileDown, FileText, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { Clock, Eye, FileDown, FileText, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
@@ -175,6 +175,8 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
 
   // Track credited invoice numbers for re-invoice button
   const [creditedInvoiceNumbers, setCreditedInvoiceNumbers] = useState<Set<string>>(new Set());
+  // Track invoices with pending (unapproved, not declined) credit notes
+  const [pendingCreditNoteInvoices, setPendingCreditNoteInvoices] = useState<Set<string>>(new Set());
 
   // Re-invoice preview state
   const [showReInvoicePreview, setShowReInvoicePreview] = useState(false);
@@ -231,14 +233,21 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
         
         // Track which invoices have been credited (approved only) for re-invoice button
         const creditedSet = new Set<string>();
+        const pendingSet = new Set<string>();
         rawCN.forEach((cn: Record<string, unknown>) => {
           const isDeclined = Boolean(cn?.decline_reason);
           const isApproved = cn?.approved === true;
-          if (isDeclined || !isApproved) return;
+          if (isDeclined) return;
           const ref = String(cn?.reference || cn?.invoice_credited || "").trim();
-          if (ref) creditedSet.add(ref);
+          if (!ref) return;
+          if (isApproved) {
+            creditedSet.add(ref);
+          } else {
+            pendingSet.add(ref);
+          }
         });
         setCreditedInvoiceNumbers(creditedSet);
+        setPendingCreditNoteInvoices(pendingSet);
 
         const creditNoteRows: InvoiceRow[] = rawCN.map((cn: Record<string, unknown>) => ({
           id: `cn-${String(cn?.id || "")}`,
@@ -1200,6 +1209,16 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent side="top">Invoice already has a credit note</TooltipContent>
+                          </Tooltip>
+                        ) : invoice.source_type !== "credit_note" && pendingCreditNoteInvoices.has(invoice.invoice_number || "") ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 opacity-50 cursor-not-allowed" disabled>
+                                <Clock className="mr-1 w-3 h-3" />
+                                Waiting for credit note approval
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Credit note pending approval</TooltipContent>
                           </Tooltip>
                         ) : invoice.source_type !== "credit_note" ? (
                           <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => openCreditNoteModal(invoice)}>
