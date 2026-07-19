@@ -101,12 +101,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Amount must be greater than 0." }, { status: 400 });
     }
 
-    // Server-side duplicate check: prevent crediting the same invoice twice
+    // Server-side duplicate check: prevent crediting the same invoice twice (skip declined)
     if (invoiceCredited) {
       const { data: existingCN, error: existingCNError } = await serviceSupabase
         .from("credit_notes")
         .select("id, credit_note_number")
         .eq("invoice_credited", invoiceCredited)
+        .neq("status", "declined")
         .limit(1);
 
       if (existingCNError) {
