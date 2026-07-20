@@ -229,6 +229,7 @@ export default function AssignPartsModal({
         const data = await response.json();
         stockArray = Array.isArray(data.items)
           ? data.items.map((item) => ({
+              ...item,
               id: item.id,
               description:
                 item.inventory_categories?.description || item.category_code,
@@ -238,7 +239,6 @@ export default function AssignPartsModal({
                 item.inventory_categories?.description || item.category_code,
               quantity: "1",
               serial_number: item.serial_number,
-              status: item.status,
               category_code: item.category_code,
               category_description:
                 item.inventory_categories?.description || item.category_code,
@@ -260,6 +260,7 @@ export default function AssignPartsModal({
         stockArray = Array.isArray(data.items)
           ? data.items
               .map((item) => ({
+                ...item,
                 id: item.id || item.stock_id || "",
                 stock_id: item.stock_id || item.id || "",
                 description: item.description || item.code || "Item",
@@ -607,6 +608,7 @@ export default function AssignPartsModal({
     setSelectedParts((prev) => [
       ...prev,
       {
+        ...item,
         stock_id: item.stock_id || item.id,
         row_id: item.row_id || "",
         description: String(
@@ -617,9 +619,9 @@ export default function AssignPartsModal({
         code: String(item.category_code || item.code || ""),
         supplier: String(item.supplier || ""),
         quantity: 1,
-        cost_per_unit: parseFloat(item.cost_excl_vat_zar || "0"),
-        total_cost: parseFloat(item.cost_excl_vat_zar || "0"),
-        ip_address: ipAddress || "",
+        cost_per_unit: parseFloat(item.cost_excl_vat_zar || item.cost_per_unit || "0"),
+        total_cost: parseFloat(item.cost_excl_vat_zar || item.cost_per_unit || "0"),
+        ip_address: item.ip_address || ipAddress || "",
         source: modalStockSource,
         source_owner: modalStockOwner,
         client_code: String(item.client_code || ""),
@@ -666,6 +668,7 @@ export default function AssignPartsModal({
     if (sourceMatchesCurrentView) {
       setAllStockItems((prev) => {
         const restoredItem = {
+          ...part,
           id: part.serial_number || part.stock_id || part.row_id || "",
           stock_id: part.stock_id,
           row_id: part.row_id || "",

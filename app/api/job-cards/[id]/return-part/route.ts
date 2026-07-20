@@ -1,7 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const normalizeToken = (v: unknown) => String(v || "").trim().toLowerCase();
+
+const removePartFromAllTechStock = async (
+  supabase: SupabaseClient,
+  serialNumber: string,
+  stockId: string,
+) => {
+  const normalizedSerial = normalizeToken(serialNumber);
+  const normalizedStockId = normalizeToken(stockId);
+  if (!normalizedSerial && !normalizedStockId) return;
+
+  const { data: allTechRows } = await supabase
+    .from("tech_stock")
+    .select("id, assigned_parts");
+
+  if (!Array.isArray(allTechRows)) return;
+
+  for (const row of allTechRows) {
+    const parts: Record<string, unknown>[] = Array.isArray(row.assigned_parts)
+      ? row.assigned_parts
+      : [];
+    const filtered = parts.filter((p: any) => {
+      const pSerial = normalizeToken(p?.serial_number);
+      const pStockId = normalizeToken(p?.stock_id);
+      if (normalizedSerial && pSerial && normalizedSerial === pSerial) return false;
+      if (normalizedStockId && pStockId && normalizedStockId === pStockId) return false;
+      return true;
+    });
+    if (filtered.length < parts.length) {
+      await supabase
+        .from("tech_stock")
+        .update({ assigned_parts: filtered })
+        .eq("id", row.id);
+    }
+  }
+};
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -47,6 +83,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         console.error("[return-part] Soltrack insert error:", error);
         return NextResponse.json({ error: `Failed to return to Soltrack stock: ${error.message}` }, { status: 500 });
       }
+      // Also remove from tech_stock if part was copied there during assign
+      await removePartFromAllTechStock(supabase, serialNumber, String(part?.stock_id || ""));
     }
 
     // ── Client: insert into client_inventory_items ──
@@ -69,6 +107,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         console.error("[return-part] Client insert error:", error);
         return NextResponse.json({ error: `Failed to return to Client stock: ${error.message}` }, { status: 500 });
       }
+      // Also remove from tech_stock if part was copied there during assign
+      await removePartFromAllTechStock(supabase, serialNumber, String(part?.stock_id || ""));
     }
 
     // ── Technician: merge into tech_stock.assigned_parts ──

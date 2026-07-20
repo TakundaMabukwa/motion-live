@@ -451,6 +451,11 @@ export async function PUT(request: NextRequest, { params }) {
       notes?: string;
     }[] = [];
 
+    const techStockSnapshots: {
+      rowId: number;
+      originalAssignedParts: Record<string, unknown>[];
+    }[] = [];
+
     const reinsertDeletedItems = async (): Promise<boolean> => {
       const MAX_RETRIES = 3;
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -661,6 +666,12 @@ export async function PUT(request: NextRequest, { params }) {
             ).filter(Boolean)
           : [];
 
+        // Snapshot original state for rollback if job update fails later
+        techStockSnapshots.push({
+          rowId: techStockRow.id,
+          originalAssignedParts: JSON.parse(JSON.stringify(assignedParts)),
+        });
+
         for (const selected of normalizedParts) {
           const serial = resolvePartSerialToken(selected);
           const stockId = String(selected.stock_id || selected.id || '').trim();
@@ -865,6 +876,16 @@ export async function PUT(request: NextRequest, { params }) {
             { error: 'CRITICAL: Failed to update job card AND failed to restore inventory. Stock may be lost. Check console logs.' },
             { status: 500 },
           );
+        }
+      }
+      // Restore tech_stock to original state
+      for (const snapshot of techStockSnapshots) {
+        const { error: restoreError } = await supabase
+          .from('tech_stock')
+          .update({ assigned_parts: snapshot.originalAssignedParts })
+          .eq('id', snapshot.rowId);
+        if (restoreError) {
+          console.error(`CRITICAL: Failed to restore tech_stock row ${snapshot.rowId}:`, restoreError);
         }
       }
       return NextResponse.json({ error: 'Failed to update job card. Inventory has been restored.' }, { status: 500 });
