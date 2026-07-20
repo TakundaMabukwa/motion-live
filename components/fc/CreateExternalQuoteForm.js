@@ -292,6 +292,33 @@ export default function CreateExternalQuoteForm() {
         const quantity = Number(product.quantity) || 1;
         const isLabour = !!product.isLabour;
         const purchaseType = product.purchaseType || formData.purchaseType || 'purchase';
+        const isOnceOff = formData.jobType === 'item_billing';
+
+        if (isOnceOff) {
+          const obj = {
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            type: product.type,
+            category: product.category,
+            quantity,
+            purchase_type: purchaseType,
+            is_labour: isLabour,
+          };
+          if (isLabour || purchaseType === 'purchase' || purchaseType === 'service') {
+            const cashPrice = product.cashPrice || 0;
+            const cashDiscount = product.cashDiscount || 0;
+            obj.cash_price = cashPrice;
+            obj.cash_gross = calculateGrossAmount(cashPrice, cashDiscount);
+            if (cashDiscount) obj.cash_discount = cashDiscount;
+            obj.total_price = obj.cash_gross * quantity;
+          }
+          if (!obj.total_price) {
+            obj.total_price = 0;
+          }
+          return obj;
+        }
+
         const isRental = !isLabour && purchaseType === 'rental';
         const isPurchase = !isLabour && purchaseType === 'purchase';
 
