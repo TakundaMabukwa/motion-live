@@ -1615,43 +1615,8 @@ export default function InventoryPage() {
 
       setMovedDeinstalledItems((prev) => ({
         ...prev,
-        [`${itemKey}:client`]: "moved",
-        [`${itemKey}:soltrack`]: "moved",
-        [`${itemKey}:technician`]: "moved",
-        [`${itemKey}:decommission`]: "moved",
+        [`${itemKey}:${destination}`]: "moved",
       }));
-
-      // Persist stock_destination to quotation_products so it survives reload
-      if (selectedCompletedJob?.quotation_products && selectedCompletedJob?.id) {
-        const products = Array.isArray(selectedCompletedJob.quotation_products)
-          ? JSON.parse(JSON.stringify(selectedCompletedJob.quotation_products))
-          : [];
-        if (products[index]) {
-          products[index].stock_destination = destination;
-          const patchResp = await fetch(`/api/job-cards/${selectedCompletedJob.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ quotation_products: products }),
-          });
-          if (patchResp.ok) {
-            setSelectedCompletedJob((prev: any) =>
-              prev ? { ...prev, quotation_products: products } : prev,
-            );
-          }
-        }
-      }
-
-      // Also persist to localStorage as backup
-      try {
-        const storageKey = `deinstalled_moved_${selectedCompletedJob?.id}`;
-        const existing = JSON.parse(localStorage.getItem(storageKey) || "{}");
-        existing[itemKey] = destination;
-        existing[`${itemKey}:client`] = "moved";
-        existing[`${itemKey}:soltrack`] = "moved";
-        existing[`${itemKey}:technician`] = "moved";
-        existing[`${itemKey}:decommission`] = "moved";
-        localStorage.setItem(storageKey, JSON.stringify(existing));
-      } catch {}
 
       toast.success(
         destination === "client"
@@ -2146,37 +2111,11 @@ export default function InventoryPage() {
       : selectedCompletedJobPartsStockUsed
     : selectedCompletedJobStockUsed;
 
-  // Pre-populate movedDeinstalledItems from localStorage + stock_destination in quotation_products
+  // Reset movedDeinstalledItems when selecting a new job
   useEffect(() => {
     if (!selectedCompletedJob?.id) return;
-    const persisted: Record<string, string> = {};
-
-    // Read from localStorage
-    try {
-      const storageKey = `deinstalled_moved_${selectedCompletedJob.id}`;
-      const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
-      Object.assign(persisted, stored);
-    } catch {}
-
-    // Also read from quotation_products stock_destination
-    if (selectedCompletedJob?.quotation_products) {
-      const products = Array.isArray(selectedCompletedJob.quotation_products)
-        ? selectedCompletedJob.quotation_products
-        : [];
-      products.forEach((item: Record<string, unknown>, index: number) => {
-        const dest = String(item?.stock_destination || "").trim();
-        if (!dest) return;
-        const itemKey = getMoveItemKey("deinstalled", item, index);
-        ["client", "soltrack", "technician", "decommission"].forEach((d) => {
-          persisted[`${itemKey}:${d}`] = "moved";
-        });
-      });
-    }
-
-    if (Object.keys(persisted).length > 0) {
-      setMovedDeinstalledItems((prev) => ({ ...prev, ...persisted }));
-    }
-  }, [selectedCompletedJob?.id, selectedCompletedJob?.quotation_products]);
+    setMovedDeinstalledItems({});
+  }, [selectedCompletedJob?.id]);
 
   useEffect(() => {
     const cleanupInstallEquipment = async () => {
