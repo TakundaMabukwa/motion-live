@@ -1118,10 +1118,10 @@ const applyQuoteBillingToTable = async (
     }
 
     const updateData: Record<string, any> = {};
-    if (!existing.new_account_number) {
+    if (!currentVehicle.new_account_number) {
       updateData.new_account_number = costCode;
     }
-    if (!existing.account_number) {
+    if (!currentVehicle.account_number) {
       updateData.account_number = costCode;
     }
 
@@ -1130,13 +1130,13 @@ const applyQuoteBillingToTable = async (
     }
 
     if (hasOnceOffUpdates) {
-      updateData.once_off_fees = mergeOnceOffFees(existing.once_off_fees, onceOffFees);
+      updateData.once_off_fees = mergeOnceOffFees(currentVehicle.once_off_fees, onceOffFees);
     }
 
     Object.assign(
       updateData,
       recalculateVehicleTotals({
-        ...existing,
+        ...currentVehicle,
         ...updateData,
       }),
     );
@@ -1144,7 +1144,7 @@ const applyQuoteBillingToTable = async (
     const { error: updateError } = await supabase
       .from(tableName)
       .update(updateData)
-      .eq("id", existing.id);
+      .eq("id", currentVehicle.id);
 
     if (updateError) {
       throw new Error(`Failed to update ${tableName} billing: ${updateError.message}`);

@@ -131,20 +131,19 @@ const getProductChargeLines = (product, job) => {
   const lines = [];
   const addLine = (priceKey, label) => {
     const amount = toNumber(product?.[priceKey]);
-    if (amount < 0) return;
+    if (amount <= 0) return;
     lines.push({ key: priceKey, label, qty, unitPrice: amount, subtotal: amount * qty });
   };
   const isDeinstall = jobType.includes("deinstall") || jobType.includes("de-install") || jobType.includes("decomm");
   if (isDeinstall) {
-    addLine("cash_price", "Cash");
-    addLine("installation_price", "Installation");
-    addLine("de_installation_price", "De-Installation");
+    const amount = toNumber(product?.de_installation_price);
+    lines.push({ key: "de_installation_price", label: "De-Installation", qty, unitPrice: amount, subtotal: amount * qty });
     return lines;
   }
-  if (isReInstall) {
-    addLine("cash_price", "Cash");
-    addLine("installation_price", "Installation");
-    addLine("de_installation_price", "De-Installation");
+  const isInstall = jobType.includes("install") || jobType === "installation";
+  if (isInstall && !isReInstall) {
+    const amount = toNumber(product?.installation_price);
+    lines.push({ key: "installation_price", label: "Installation", qty, unitPrice: amount, subtotal: amount * qty });
     return lines;
   }
   addLine("cash_price", "Cash");
