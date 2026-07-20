@@ -131,7 +131,7 @@ const getProductChargeLines = (product, job) => {
   const lines = [];
   const addLine = (priceKey, label) => {
     const amount = toNumber(product?.[priceKey]);
-    if (amount <= 0) return;
+    if (amount < 0) return;
     lines.push({ key: priceKey, label, qty, unitPrice: amount, subtotal: amount * qty });
   };
   const isDeinstall = jobType.includes("deinstall") || jobType.includes("de-install") || jobType.includes("decomm");
@@ -499,17 +499,17 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
               const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
               return {
                 key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
-                previousReg: hideRegistrationColumns ? "" : jobReg,
-                newReg: hideRegistrationColumns ? "" : jobReg,
-                fleetNumber: hideRegistrationColumns ? "" : jobFleet,
-                itemCode: chargeLine.label,
+                previous_reg: hideRegistrationColumns ? "" : jobReg,
+                new_reg: hideRegistrationColumns ? "" : jobReg,
+                fleet_number: hideRegistrationColumns ? "" : jobFleet,
+                item_code: chargeLine.label,
                 description: resolvedDescription,
                 comments: lineLabel,
-                qty: chargeLine.qty,
-                unitPrice: chargeLine.unitPrice,
-                vatPercent: "15.00%",
-                vatAmount: lineVat,
-                totalIncl: lineTotal,
+                quantity: chargeLine.qty,
+                unit_price: chargeLine.unitPrice,
+                vat_percent: "15.00%",
+                vat_amount: lineVat,
+                total_incl: lineTotal,
               };
             });
           }
@@ -518,34 +518,34 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       : Array.isArray(storedInvoiceRecord?.line_items) && storedInvoiceRecord.line_items.length > 0
         ? storedInvoiceRecord.line_items.filter((item) => toNumber(item?.unit_price) >= 0).map((item, index) => ({
             key: `${item?.item_code || item?.description || "item"}-${index}`,
-            previousReg: hideRegistrationColumns ? "" : item?.previous_reg || jobReg,
-            newReg: hideRegistrationColumns ? "" : item?.new_reg || item?.previous_reg || jobReg,
-            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
-            itemCode: item?.item_code || "Item",
+            previous_reg: hideRegistrationColumns ? "" : item?.previous_reg || item?.previousReg || jobReg,
+            new_reg: hideRegistrationColumns ? "" : item?.new_reg || item?.newReg || item?.previous_reg || item?.previousReg || jobReg,
+            fleet_number: hideRegistrationColumns ? "" : jobFleet,
+            item_code: item?.item_code || "Item",
             description: item?.description || item?.item_code || "-",
             comments: item?.comments || "",
-            qty: Math.max(1, toNumber(item?.quantity) || 1),
-            unitPrice: toNumber(item?.unit_price),
-            vatPercent: item?.vat_percent || "0.00%",
-            vatAmount: toNumber(item?.vat_amount),
-            totalIncl: toNumber(item?.total_incl),
+            quantity: Math.max(1, toNumber(item?.quantity) || 1),
+            unit_price: toNumber(item?.unit_price),
+            vat_percent: item?.vat_percent || "0.00%",
+            vat_amount: toNumber(item?.vat_amount),
+            total_incl: toNumber(item?.total_incl),
           }))
         : [{
             key: "fallback-row",
-            previousReg: hideRegistrationColumns ? "" : jobReg,
-            newReg: hideRegistrationColumns ? "" : jobReg,
-            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
-            itemCode: isAdminOrRepairFallbackJob(effectiveJob) && normalizeBillingToken(effectiveJob?.job_type || effectiveJob?.quotation_job_type) === "repair" ? "REPAIR" : isAdminOrRepairFallbackJob(effectiveJob) ? "ADMIN" : effectiveJob.job_type || "Service",
+            previous_reg: hideRegistrationColumns ? "" : jobReg,
+            new_reg: hideRegistrationColumns ? "" : jobReg,
+            fleet_number: hideRegistrationColumns ? "" : jobFleet,
+            item_code: isAdminOrRepairFallbackJob(effectiveJob) && normalizeBillingToken(effectiveJob?.job_type || effectiveJob?.quotation_job_type) === "repair" ? "REPAIR" : isAdminOrRepairFallbackJob(effectiveJob) ? "ADMIN" : effectiveJob.job_type || "Service",
             description: isAdminOrRepairFallbackJob(effectiveJob) ? (() => {
               const normalizedType = normalizeBillingToken(effectiveJob?.job_type || effectiveJob?.quotation_job_type);
               return normalizedType === "repair" || normalizedType === "admincreated" ? "Repair Job Charge" : "Admin Job Charge";
             })() : effectiveJob.job_description || "Job completion",
             comments: effectiveJob.completion_notes || effectiveJob.work_notes || "",
-            qty: 1,
-            unitPrice: rawTotals.subtotal,
-            vatPercent: "15.00%",
-            vatAmount: rawTotals.vat,
-            totalIncl: rawTotals.total,
+            quantity: 1,
+            unit_price: rawTotals.subtotal,
+            vat_percent: "15.00%",
+            vat_amount: rawTotals.vat,
+            total_incl: rawTotals.total,
           }];
     const annuityMultiplier = getAnnuityMultiplier(effectiveJob);
     const manualAnnuityRows = !isInstallJob || isReInstall ? [] : (annuitySelectableItems || [])
@@ -561,17 +561,17 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const vat = Number((subtotal * VAT_RATE).toFixed(2));
           rows.push({
             key: `annuity-rental-${idx}`,
-            previousReg: hideRegistrationColumns ? "" : jobReg,
-            newReg: hideRegistrationColumns ? "" : jobReg,
-            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
-            itemCode: "Rental",
+            previous_reg: hideRegistrationColumns ? "" : jobReg,
+            new_reg: hideRegistrationColumns ? "" : jobReg,
+            fleet_number: hideRegistrationColumns ? "" : jobFleet,
+            item_code: "Rental",
             description: item.name || "Annuity Item",
             comments: annuityMultiplier > 1 ? `Rental (${annuityMultiplier}x) - ${item.name}` : `Rental - ${item.name}`,
-            qty,
-            unitPrice: adjustedUnitPrice,
-            vatPercent: "15.00%",
-            vatAmount: vat,
-            totalIncl: Number((subtotal + vat).toFixed(2)),
+            quantity: qty,
+            unit_price: adjustedUnitPrice,
+            vat_percent: "15.00%",
+            vat_amount: vat,
+            total_incl: Number((subtotal + vat).toFixed(2)),
           });
         }
         if (subAmt > 0) {
@@ -580,17 +580,17 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const vat = Number((subtotal * VAT_RATE).toFixed(2));
           rows.push({
             key: `annuity-sub-${idx}`,
-            previousReg: hideRegistrationColumns ? "" : jobReg,
-            newReg: hideRegistrationColumns ? "" : jobReg,
-            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
-            itemCode: "Subscription",
+            previous_reg: hideRegistrationColumns ? "" : jobReg,
+            new_reg: hideRegistrationColumns ? "" : jobReg,
+            fleet_number: hideRegistrationColumns ? "" : jobFleet,
+            item_code: "Subscription",
             description: item.name || "Annuity Item",
             comments: annuityMultiplier > 1 ? `Subscription (${annuityMultiplier}x) - ${item.name}` : `Subscription - ${item.name}`,
-            qty,
-            unitPrice: adjustedUnitPrice,
-            vatPercent: "15.00%",
-            vatAmount: vat,
-            totalIncl: Number((subtotal + vat).toFixed(2)),
+            quantity: qty,
+            unit_price: adjustedUnitPrice,
+            vat_percent: "15.00%",
+            vat_amount: vat,
+            total_incl: Number((subtotal + vat).toFixed(2)),
           });
         }
         return rows;
@@ -598,9 +598,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const annuityRows = hasStoredLineItems ? [] : manualAnnuityRows;
     const rows = [...productRows, ...annuityRows];
     const totals = rows.reduce((acc, row) => {
-      acc.subtotal += row.unitPrice * row.qty;
-      acc.vat += row.vatAmount;
-      acc.total += row.totalIncl;
+      acc.subtotal += toNumber(row.unit_price) * toNumber(row.quantity);
+      acc.vat += toNumber(row.vat_amount);
+      acc.total += toNumber(row.total_incl);
       return acc;
     }, { subtotal: 0, vat: 0, total: 0, discount: 0 });
     return {
@@ -639,7 +639,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const spacerColspan = 8 + (includeRegistrationColumns ? 3 : 0) + (includeItemCodeColumn ? 1 : 0);
 
     const rowsHtml = invoiceView.rows.map((row) =>
-      `<tr>${includeRegistrationColumns ? `<td>${escapeHtml(row.previousReg)}</td><td>${escapeHtml(row.newReg)}</td><td>${escapeHtml(row.fleetNumber || "-")}</td>` : ""}${includeItemCodeColumn ? `<td>${escapeHtml(row.itemCode)}</td>` : ""}<td>${escapeHtml(row.description)}</td><td>${escapeHtml(row.comments)}</td><td class="text-center">${escapeHtml(row.qty)}</td><td class="text-right">${escapeHtml(row.unitPrice.toFixed(2))}</td><td class="text-right">${escapeHtml(row.vatAmount.toFixed(2))}</td><td class="text-center">${escapeHtml(row.vatPercent)}</td><td class="text-right">${escapeHtml(row.totalIncl.toFixed(2))}</td></tr>`
+      `<tr>${includeRegistrationColumns ? `<td>${escapeHtml(row.previous_reg)}</td><td>${escapeHtml(row.new_reg)}</td><td>${escapeHtml(row.fleet_number || "-")}</td>` : ""}${includeItemCodeColumn ? `<td>${escapeHtml(row.item_code)}</td>` : ""}<td>${escapeHtml(row.description)}</td><td>${escapeHtml(row.comments)}</td><td class="text-center">${escapeHtml(row.quantity)}</td><td class="text-right">${escapeHtml(toNumber(row.unit_price).toFixed(2))}</td><td class="text-right">${escapeHtml(toNumber(row.vat_amount).toFixed(2))}</td><td class="text-center">${escapeHtml(row.vat_percent)}</td><td class="text-right">${escapeHtml(toNumber(row.total_incl).toFixed(2))}</td></tr>`
     ).join("");
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
