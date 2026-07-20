@@ -317,7 +317,6 @@ export async function PATCH(
     // Prepare update data - remove technician if job is being completed
     const READ_ONLY_COLUMNS = new Set([
       'id', 'created_at', 'created_by', 'updated_at', 'updated_by',
-      'parts_required', 'equipment_used', 'before_photos', 'after_photos',
       'quotation_number', 'quote_status',
       'is_invoiced', 'invoice_number', 'invoice_date',
       'annuity_multiplier', 'annuity_amount', 'annuity_date',
@@ -364,8 +363,6 @@ export async function PATCH(
     delete updateData.deduct_tech_stock;
     delete updateData.parts_required;
     delete updateData.equipment_used;
-    delete updateData.before_photos;
-    delete updateData.after_photos;
     let pendingTechStockUpdates: Array<{
       rowId: number;
       technicianEmail: string;
@@ -791,6 +788,11 @@ export async function PATCH(
         if (sid && transferredStockIds.has(sid)) return false;
         return true;
       });
+    }
+
+    // If equipment_used was provided but never written to updateData (e.g. parts_required→equipment_used without tech stock transfer), write it now
+    if (Array.isArray(body.equipment_used) && !('equipment_used' in updateData)) {
+      updateData.equipment_used = normalizePartArray(body.equipment_used);
     }
 
     // Update the job card
