@@ -36,6 +36,7 @@ const toNumber = (v) => {
 };
 
 const VAT_RATE = 0.15;
+const round2 = (n) => Math.round(n * 100) / 100;
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-ZA", {
@@ -248,6 +249,16 @@ export default function AnnuityBillingTab() {
     })();
     const recentCutoff = new Date(billingDate.getTime() - 30 * 24 * 60 * 60 * 1000);
     const items = extractInvoiceItems(row.invoiceData);
+
+    const totalExVat = items.reduce((sum, item) =>
+      sum + toNumber(
+        item?.amountExcludingVat ??
+          item?.unit_price_without_vat ??
+          item?.total_excl_vat ??
+          item?.unit_price,
+      ), 0);
+    const totalVatFromSubtotal = round2(totalExVat * VAT_RATE);
+
     return items.map((item, index) => {
       const exVat = toNumber(
         item?.amountExcludingVat ??
@@ -255,10 +266,8 @@ export default function AnnuityBillingTab() {
           item?.total_excl_vat ??
           item?.unit_price,
       );
-      const vatAmount = toNumber(item?.vat_amount ?? item?.vatAmount) || exVat * VAT_RATE;
-      const totalInclVat =
-        toNumber(item?.total_including_vat ?? item?.total_incl_vat ?? item?.totalRentalSub) ||
-        exVat + vatAmount;
+      const vatAmount = totalExVat > 0 ? round2((exVat / totalExVat) * totalVatFromSubtotal) : 0;
+      const totalInclVat = round2(exVat + vatAmount);
       const quantity = Math.max(1, Number(item?.quantity ?? item?.units ?? 1) || 1);
       const addedAtRaw =
         item?.item_added_at ??

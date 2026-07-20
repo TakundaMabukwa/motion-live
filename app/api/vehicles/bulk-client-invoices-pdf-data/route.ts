@@ -49,6 +49,14 @@ const buildAddress = (source?: Record<string, unknown> | null) =>
     .filter(Boolean)
     .join('\n');
 
+const VAT_RATE = 0.15;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const recalcVatFromSubtotal = (subtotal: number) => {
+  const vat = round2(subtotal * VAT_RATE);
+  return { subtotal: round2(subtotal), vatAmount: vat, totalAmount: round2(subtotal + vat) };
+};
+
 const fetchCostCenters = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   accountNumbers: string[] | null,
@@ -383,6 +391,9 @@ export async function GET(request: NextRequest) {
               '',
           ).trim();
 
+          const previewSubtotal = draftInvoiceData?.subtotal ?? 0;
+          const recalced = recalcVatFromSubtotal(Number(previewSubtotal));
+
           return {
             accountNumber,
             invoiceData: {
@@ -397,15 +408,18 @@ export async function GET(request: NextRequest) {
               client_address: previewClientAddress,
               customer_vat_number: previewCustomerVatNumber,
               company_registration_number: previewCompanyRegistrationNumber,
-              subtotal: draftInvoiceData?.subtotal ?? 0,
-              vat_amount: draftInvoiceData?.vat_amount ?? 0,
-              total_amount: draftInvoiceData?.total_amount ?? 0,
+              subtotal: recalced.subtotal,
+              vat_amount: recalced.vatAmount,
+              total_amount: recalced.totalAmount,
               notes: draftInvoiceData?.notes ?? '',
               invoiceItems: invoiceItems,
               invoice_items: invoiceItems,
             },
           };
         }
+
+        const persistSubtotal = Number(draftInvoiceData?.subtotal || 0);
+        const persistRecalced = recalcVatFromSubtotal(persistSubtotal);
 
         const persistResponse = await fetch(`${origin}/api/invoices/bulk-account`, {
           method: 'POST',
@@ -437,10 +451,10 @@ export async function GET(request: NextRequest) {
               draftInvoiceData?.billing_month || billingMonthKey,
               draftInvoiceData?.invoice_date,
             ),
-            subtotal: draftInvoiceData?.subtotal || 0,
-            vatAmount: draftInvoiceData?.vat_amount || 0,
+            subtotal: persistRecalced.subtotal,
+            vatAmount: persistRecalced.vatAmount,
             discountAmount: 0,
-            totalAmount: draftInvoiceData?.total_amount || 0,
+            totalAmount: persistRecalced.totalAmount,
             lineItems,
             notes: draftInvoiceData?.notes || null,
           }),

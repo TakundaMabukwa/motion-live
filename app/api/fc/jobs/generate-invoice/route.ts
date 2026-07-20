@@ -104,6 +104,8 @@ export async function POST(request: NextRequest) {
         (p: Record<string, unknown>) => p && typeof p === "object",
       );
       const annuityMultiplier = getAnnuityMultiplier(jobCard as Record<string, unknown>);
+      const jobReg = String(jobCard.vehicle_registration || "").trim();
+      const jobFleet = String(jobCard.fleet_number || "").trim();
       const generatedLines = products.flatMap((p: Record<string, unknown>) => {
         const qty = Math.max(1, Number(p.quantity) || 1);
         const cash = toCurrency(p.cash_price) || toCurrency(p.cash_gross);
@@ -117,20 +119,20 @@ export async function POST(request: NextRequest) {
         const rows: Record<string, unknown>[] = [];
         if (unitPrice > 0) {
           const vatAmount = unitPrice * 0.15;
-          rows.push({ description: productName, quantity: qty, unit_price: unitPrice, vat_amount: vatAmount, total_incl: (unitPrice + vatAmount) * qty, type: productType });
+          rows.push({ description: productName, quantity: qty, unit_price: unitPrice, vat_amount: vatAmount, total_incl: (unitPrice + vatAmount) * qty, type: productType, previous_reg: jobReg, new_reg: jobReg, reg: jobReg });
         }
         if (rental > 0) {
           const vatAmount = rental * 0.15;
-          rows.push({ description: `${productName} - Rental`, quantity: qty, unit_price: rental, vat_amount: vatAmount, total_incl: (rental + vatAmount) * qty, type: productType });
+          rows.push({ description: `${productName} - Rental`, quantity: qty, unit_price: rental, vat_amount: vatAmount, total_incl: (rental + vatAmount) * qty, type: productType, previous_reg: jobReg, new_reg: jobReg, reg: jobReg });
         }
         if (sub > 0) {
           const vatAmount = sub * 0.15;
-          rows.push({ description: `${productName} - Subscription`, quantity: qty, unit_price: sub, vat_amount: vatAmount, total_incl: (sub + vatAmount) * qty, type: productType });
+          rows.push({ description: `${productName} - Subscription`, quantity: qty, unit_price: sub, vat_amount: vatAmount, total_incl: (sub + vatAmount) * qty, type: productType, previous_reg: jobReg, new_reg: jobReg, reg: jobReg });
         }
         if (rows.length === 0) {
           const fallbackAmt = unitPrice || rental || sub;
           const vatAmount = fallbackAmt * 0.15;
-          rows.push({ description: productName, quantity: qty, unit_price: fallbackAmt, vat_amount: vatAmount, total_incl: (fallbackAmt + vatAmount) * qty, type: productType });
+          rows.push({ description: productName, quantity: qty, unit_price: fallbackAmt, vat_amount: vatAmount, total_incl: (fallbackAmt + vatAmount) * qty, type: productType, previous_reg: jobReg, new_reg: jobReg, reg: jobReg });
         }
         return rows;
       });
@@ -140,6 +142,7 @@ export async function POST(request: NextRequest) {
         vat_amount: toCurrency(jobCard.quotation_total_amount) * 0.15,
         total_incl: toCurrency(jobCard.quotation_total_amount) * 1.15,
         type: jobCard.job_type || "",
+        previous_reg: jobReg, new_reg: jobReg, reg: jobReg,
       }];
       subtotal = lineItems.reduce((s, item) => s + (toCurrency(item.unit_price) * toNumber(item.quantity)), 0);
       totalVat = lineItems.reduce((s, item) => s + toCurrency(item.vat_amount), 0);
