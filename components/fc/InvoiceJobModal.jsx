@@ -125,27 +125,12 @@ const getProductUnitPrice = (product, options = {}) => {
 
 const getProductChargeLines = (product, job) => {
   const qty = Math.max(1, toNumber(product?.quantity) || 1);
-  const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
-  const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
-  const isReInstall = jobSubType === "reinstall";
   const lines = [];
   const addLine = (priceKey, label) => {
     const amount = toNumber(product?.[priceKey]);
     if (amount <= 0) return;
     lines.push({ key: priceKey, label, qty, unitPrice: amount, subtotal: amount * qty });
   };
-  const isDeinstall = jobType.includes("deinstall") || jobType.includes("de-install") || jobType.includes("decomm");
-  if (isDeinstall) {
-    const amount = toNumber(product?.de_installation_price);
-    lines.push({ key: "de_installation_price", label: "De-Installation", qty, unitPrice: amount, subtotal: amount * qty });
-    return lines;
-  }
-  const isInstall = jobType.includes("install") || jobType === "installation";
-  if (isInstall && !isReInstall) {
-    const amount = toNumber(product?.installation_price);
-    lines.push({ key: "installation_price", label: "Installation", qty, unitPrice: amount, subtotal: amount * qty });
-    return lines;
-  }
   addLine("cash_price", "Cash");
   addLine("installation_price", "Installation");
   addLine("de_installation_price", "De-Installation");
@@ -244,18 +229,14 @@ const getInvoiceVehicles = (job) => {
 
 const getInvoiceTotals = (job, overrideProducts) => {
   const products = overrideProducts || parseQuotationProducts(job?.quotation_products);
-  const computedSubtotal = products.reduce((sum, product) => {
+  const subtotal = products.reduce((sum, product) => {
     const chargeLines = getProductChargeLines(product, job)
-      .filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0)
-      .filter((chargeLine) => !["subscription_price", "rental_price"].includes(chargeLine.key));
+      .filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
     if (chargeLines.length > 0) {
       return sum + chargeLines.reduce((lineSum, chargeLine) => lineSum + toNumber(chargeLine.subtotal), 0);
     }
-    const qty = Math.max(1, toNumber(product?.quantity) || 1);
-    const unitPrice = getProductUnitPrice(product, { includeRecurring: false });
-    return sum + unitPrice * qty;
+    return sum;
   }, 0);
-  const subtotal = products.length > 0 ? computedSubtotal : toNumber(job?.quotation_subtotal);
   const vat = Number((subtotal * VAT_RATE).toFixed(2));
   const total = Number((subtotal + vat).toFixed(2));
   return { products, subtotal, vat, total };
