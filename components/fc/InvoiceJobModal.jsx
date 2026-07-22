@@ -228,6 +228,14 @@ const getInvoiceVehicles = (job) => {
 };
 
 const getInvoiceTotals = (job, overrideProducts) => {
+  const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+  const isRepairOrAdmin = jobType.includes("repair") || jobType.includes("admin");
+  if (isRepairOrAdmin) {
+    const subtotal = toNumber(job?.quotation_total_amount);
+    const vat = Number((subtotal * VAT_RATE).toFixed(2));
+    const total = Number((subtotal + vat).toFixed(2));
+    return { products: overrideProducts || parseQuotationProducts(job?.quotation_products), subtotal, vat, total };
+  }
   const products = overrideProducts || parseQuotationProducts(job?.quotation_products);
   const subtotal = products.reduce((sum, product) => {
     const chargeLines = getProductChargeLines(product, job)
@@ -460,8 +468,24 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const jobTypeRaw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
     const isInstallJob = jobTypeRaw.includes("install") || jobTypeRaw === "installation";
     const hasStoredLineItems = Array.isArray(storedInvoiceRecord?.line_items) && storedInvoiceRecord.line_items.length > 0;
+    const isRepairOrAdmin = jobTypeRaw.includes("repair") || jobTypeRaw.includes("admin");
     const seenProductKeys = new Set();
-    const productRows = !hasStoredLineItems && rawTotals.products.length > 0
+    const productRows = !hasStoredLineItems && isRepairOrAdmin
+      ? [{
+          key: `repair-admin-${effectiveJob?.id || "item"}`,
+          previous_reg: hideRegistrationColumns ? "" : jobReg,
+          new_reg: hideRegistrationColumns ? "" : jobReg,
+          fleet_number: hideRegistrationColumns ? "" : jobFleet,
+          item_code: jobTypeRaw.includes("repair") ? "REPAIR" : "ADMIN",
+          description: jobTypeRaw.includes("repair") ? "Repair Job Charge" : "Admin Job Charge",
+          comments: jobTypeRaw.includes("repair") ? "Repair Job Charge" : "Admin Job Charge",
+          quantity: 1,
+          unit_price: rawTotals.subtotal,
+          vat_percent: "15.00%",
+          vat_amount: rawTotals.vat,
+          total_incl: rawTotals.total,
+        }]
+      : !hasStoredLineItems && rawTotals.products.length > 0
       ? rawTotals.products.flatMap((product, index) => {
           const productKey = String(product?.name || product?.item_code || product?.code || "").trim().toLowerCase();
           if (productKey && seenProductKeys.has(productKey)) return [];
