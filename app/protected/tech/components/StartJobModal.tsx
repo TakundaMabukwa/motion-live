@@ -55,6 +55,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const [signatureName, setSignatureName] = useState('');
   const [signatureChecked, setSignatureChecked] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
+  const [equipmentSearch, setEquipmentSearch] = useState('');
   const [qrReader, setQrReader] = useState<BrowserQRCodeReader | null>(null);
   const [isQrScanning, setIsQrScanning] = useState(false);
   const [qrStream, setQrStream] = useState<MediaStream | null>(null);
@@ -1938,6 +1939,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     setManualReg('');
     setSignatureName('');
     setSignatureChecked(false);
+    setEquipmentSearch('');
     signaturePadRef.current?.clear();
     setVehicleDetails({
       vehicle_year: '',
@@ -2883,10 +2885,26 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       <p className="text-xs text-slate-600 mt-1">
                         Select extra boot stock used on this job. It is saved and removed from your boot stock immediately.
                       </p>
+                      <input
+                        type="text"
+                        placeholder="Search by name or serial..."
+                        value={equipmentSearch}
+                        onChange={(e) => setEquipmentSearch(e.target.value)}
+                        className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
                     </div>
                     <div className="max-h-[42vh] overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
-                      {technicianStock.map((item: any, index: number) => {
+                      {technicianStock
+                        .filter((item: any) => {
+                          if (!equipmentSearch.trim()) return true;
+                          const q = equipmentSearch.toLowerCase();
+                          const name = String(item?.description || '').toLowerCase();
+                          const serial = String(item?.serial_number || item?.serialNumber || '').toLowerCase();
+                          const stockId = getStockIdToken(item);
+                          return name.includes(q) || serial.includes(q) || String(stockId || '').toLowerCase().includes(q);
+                        })
+                        .map((item: any, index: number) => {
                         const selectionKey = getPartSelectionKey('stock', item);
                         const checked = selectedEquipmentIds.includes(selectionKey);
                         const itemSerial = String(

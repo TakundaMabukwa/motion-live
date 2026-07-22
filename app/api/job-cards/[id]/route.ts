@@ -362,7 +362,6 @@ export async function PATCH(
     delete updateData.transfer_equipment_from_assigned_parts;
     delete updateData.deduct_tech_stock;
     delete updateData.parts_required;
-    delete updateData.equipment_used;
     let pendingTechStockUpdates: Array<{
       rowId: number;
       technicianEmail: string;
