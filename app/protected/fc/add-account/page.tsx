@@ -89,11 +89,14 @@ export default function AddAccountPage() {
     e.preventDefault();
 
     // Basic validation
-    if (!formData.company) {
+    const missingFields: string[] = [];
+    if (!formData.company.trim()) missingFields.push("Company Name");
+    if (!formData.trading_name.trim()) missingFields.push("Trading Name");
+    if (missingFields.length > 0) {
       toast({
         variant: "destructive",
-        title: "Validation Error",
-        description: "Company name is required",
+        title: "Required Fields Missing",
+        description: `${missingFields.join(", ")} ${missingFields.length > 1 ? "are" : "is"} required.`,
       });
       return;
     }
@@ -122,9 +125,9 @@ export default function AddAccountPage() {
         description: `Account ${result.data.account_number} has been created for ${result.data.company}`,
       });
 
-      // Redirect to the client's cost centers so FC can keep adding more.
+      // Redirect to companies tab
       router.push(
-        `/protected/fc/clients/cost-centers?accounts=${encodeURIComponent(result.data.account_number)}`,
+        `/protected/fc?tab=companies`,
       );
     } catch (error) {
       console.error("Error creating account:", error);
@@ -244,7 +247,7 @@ export default function AddAccountPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="trading_name">Trading Name</Label>
+                <Label htmlFor="trading_name">Trading Name *</Label>
                 <Input
                   id="trading_name"
                   value={formData.trading_name}
@@ -252,6 +255,7 @@ export default function AddAccountPage() {
                     handleInputChange("trading_name", e.target.value)
                   }
                   placeholder="Enter trading name"
+                  required
                 />
               </div>
             </div>

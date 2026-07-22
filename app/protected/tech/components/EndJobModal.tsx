@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Camera, X, CheckCircle, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { Camera, X, CheckCircle, Trash2, Loader2, RefreshCw, Pen } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
+import ClientSignaturePad from '@/components/tech/ClientSignaturePad';
 
 interface EndJobModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export default function EndJobModal({ isOpen, onClose, job, onJobCompleted }: En
   const [isCapturing, setIsCapturing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jobData, setJobData] = useState<any>(job);
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -362,6 +364,15 @@ export default function EndJobModal({ isOpen, onClose, job, onJobCompleted }: En
               )}
 
               <Button
+                onClick={() => setShowSignaturePad(true)}
+                variant="outline"
+                className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <Pen className="mr-2 w-4 h-4" />
+                Client Sign-Off
+              </Button>
+
+              <Button
                 onClick={handleEndJob}
                 disabled={afterPhotos.length === 0 || isSubmitting}
                 className="bg-green-600 hover:bg-green-700 w-full"
@@ -373,6 +384,16 @@ export default function EndJobModal({ isOpen, onClose, job, onJobCompleted }: En
           </Card>
         </div>
       </div>
+
+      <ClientSignaturePad
+        isOpen={showSignaturePad}
+        onClose={() => setShowSignaturePad(false)}
+        job={jobData}
+        onComplete={(url) => {
+          setJobData((prev: any) => ({ ...prev, client_signature: url }));
+          toast.success('Signature captured!');
+        }}
+      />
     </div>
   );
 }

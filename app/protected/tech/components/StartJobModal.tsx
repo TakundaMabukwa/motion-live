@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react';
+import SignaturePad from 'signature_pad';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ import {
   Loader2,
   Car,
   ChevronLeft,
+  Pen,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
@@ -32,7 +34,7 @@ interface StartJobModalProps {
 }
 
 export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobStarted, onJobCompleted }: StartJobModalProps) {
-  const [currentStep, setCurrentStep] = useState<'qr-scan' | 'vehicle-details' | 'before-photos' | 'equipment-used' | 'job-active' | 'after-photos' | 'complete'>('qr-scan');
+  const [currentStep, setCurrentStep] = useState<'qr-scan' | 'vehicle-details' | 'before-photos' | 'equipment-used' | 'job-active' | 'after-photos' | 'signature' | 'complete'>('qr-scan');
   const [qrCode, setQrCode] = useState('');
   const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
   const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
@@ -48,6 +50,11 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockOwnerEmail, setStockOwnerEmail] = useState('');
+  const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
+  const signaturePadRef = useRef<SignaturePad | null>(null);
+  const [signatureName, setSignatureName] = useState('');
+  const [signatureChecked, setSignatureChecked] = useState(false);
+  const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [qrReader, setQrReader] = useState<BrowserQRCodeReader | null>(null);
   const [isQrScanning, setIsQrScanning] = useState(false);
   const [qrStream, setQrStream] = useState<MediaStream | null>(null);
@@ -73,6 +80,40 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     ip_address: '',
   });
 
+  useEffect(() => {
+    if (currentStep === 'signature' && !signatureName) {
+      setSignatureName(jobData?.customer_name || jobData?.client_name || '');
+    }
+    if (currentStep === 'signature' && signatureCanvasRef.current) {
+      const initPad = () => {
+        const canvas = signatureCanvasRef.current;
+        if (!canvas) return;
+        if (signaturePadRef.current) {
+          signaturePadRef.current.clear();
+          return;
+        }
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          requestAnimationFrame(initPad);
+          return;
+        }
+        canvas.width = rect.width * 2;
+        canvas.height = rect.height * 2;
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.scale(2, 2);
+        const pad = new SignaturePad(canvas, {
+          backgroundColor: 'rgb(255, 255, 255)',
+          penColor: '#000000',
+          minWidth: 1.5,
+          maxWidth: 3.0,
+          velocityFilterWeight: 0.7,
+        });
+        signaturePadRef.current = pad;
+      };
+      requestAnimationFrame(initPad);
+    }
+  }, [currentStep]);
+
   const resolveLoadedStep = (loadedJobData: any) => {
     const hasBeforePhotos = parseArrayField(loadedJobData?.before_photos).length > 0;
     const hasEquipmentUsed = parseArrayField(loadedJobData?.equipment_used).length > 0;
@@ -93,7 +134,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       'equipment-used': 'before-photos',
       'job-active': 'equipment-used',
       'after-photos': 'job-active',
-      'complete': 'after-photos',
+      'signature': 'after-photos',
+      'complete': 'signature',
     };
 
     const previousStep = previousStepMap[currentStep];
@@ -112,6 +154,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     'equipment-used',
     'job-active',
     'after-photos',
+    'signature',
     'complete',
   ];
 
@@ -1893,6 +1936,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     setTechnicianStock([]);
     setSelectedEquipmentIds([]);
     setManualReg('');
+    setSignatureName('');
+    setSignatureChecked(false);
+    signaturePadRef.current?.clear();
     setVehicleDetails({
       vehicle_year: '',
       vehicle_make: '',
@@ -2051,18 +2097,19 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                 { key: 'equipment-used', label: 'Equipment', icon: CheckCircle },
                 { key: 'job-active', label: 'Active', icon: CheckCircle },
                 { key: 'after-photos', label: 'After', icon: Camera },
+                { key: 'signature', label: 'Sign', icon: Pen },
                 { key: 'complete', label: 'Done', icon: CheckCircle },
               ].map((step, index) => {
                 const Icon = step.icon;
                 const isActive = currentStep === step.key;
                 const isCompleted = orderedSteps.indexOf(currentStep) > index;
-                const isClickable = canNavigateToStep(step.key);
+                const isClickable = canNavigateToStep(step.key as typeof currentStep);
                 
                 return (
                   <div key={step.key} className="flex items-center flex-shrink-0">
                     <button
                       type="button"
-                      onClick={() => handleStepNavigation(step.key)}
+                      onClick={() => handleStepNavigation(step.key as typeof currentStep)}
                       disabled={!isClickable}
                       className={`flex flex-col items-center rounded-lg transition-all ${
                         isClickable ? 'cursor-pointer' : 'cursor-not-allowed'
@@ -2951,7 +2998,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     Back
                   </Button>
                   <Button
-                    onClick={() => void handleCompleteJobInModal()}
+                    onClick={() => setCurrentStep('signature')}
                     disabled={isSubmitting || isClosing}
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
@@ -2961,7 +3008,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                         Completing...
                       </>
                     ) : (
-                      'Complete Job'
+                      'Client Sign-Off'
                     )}
                   </Button>
                   <Button
@@ -3170,20 +3217,141 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     Back
                   </Button>
                   <Button
-                    onClick={() => void handleAfterPhotosComplete()}
+                    onClick={() => setCurrentStep('signature')}
                     disabled={isSubmitting || isClosing}
                     className="flex-1 bg-green-600 hover:bg-green-700"
                   >
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Complete Job
+                    Client Sign-Off
                   </Button>
                   <Button
-                    onClick={() => void handleCompleteJobInModal({ navigateToCompleteStep: true })}
+                    onClick={() => setCurrentStep('signature')}
                     disabled={isSubmitting || isClosing}
                     variant="outline"
                     className="sm:px-6"
                   >
-                    Skip Photos & Complete
+                    Skip Photos & Sign
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 6b: Client Signature */}
+            {currentStep === 'signature' && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Client Sign-Off</h3>
+                  <p className="text-gray-600 text-sm">
+                    Have the client review the work and sign off
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-gray-700">Client Name *</Label>
+                    <Input
+                      value={signatureName}
+                      onChange={(e) => setSignatureName(e.target.value)}
+                      placeholder="Enter client name"
+                      className="h-11"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-gray-700">Date</Label>
+                    <Input
+                      type="date"
+                      value={new Date().toISOString().slice(0, 10)}
+                      readOnly
+                      className="bg-gray-50 h-11"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="signoff-confirm"
+                    checked={signatureChecked}
+                    onChange={(e) => setSignatureChecked(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="signoff-confirm" className="text-sm text-gray-700 cursor-pointer select-none">
+                    I am happy with the work done and I sign off
+                  </Label>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-gray-700">Signature *</Label>
+                  <div className="relative border-2 border-gray-300 rounded-xl bg-white h-[200px]">
+                    <canvas
+                      ref={signatureCanvasRef}
+                      className="w-full h-[200px] rounded-xl touch-none cursor-crosshair"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      signaturePadRef.current?.clear();
+                    }}
+                  >
+                    Clear Signature
+                  </Button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button onClick={goToPreviousStep} variant="outline" className="sm:px-6">
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      if (!signaturePadRef.current || signaturePadRef.current.isEmpty()) {
+                        toast.error('Please provide a signature');
+                        return;
+                      }
+                      if (!signatureName.trim()) {
+                        toast.error('Please enter the client name');
+                        return;
+                      }
+                      if (!signatureChecked) {
+                        toast.error('Please confirm sign-off');
+                        return;
+                      }
+                      setIsSavingSignature(true);
+                      try {
+                        const signatureData = signaturePadRef.current.toDataURL('image/png');
+                        const res = await fetch(`/api/job-cards/${jobData.id}/signature`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            signature: signatureData,
+                            client_name: signatureName.trim(),
+                            sign_off_date: new Date().toISOString().slice(0, 10),
+                          }),
+                        });
+                        const result = await res.json();
+                        if (!res.ok) throw new Error(result.error || 'Failed to save');
+                        toast.success('Signature saved!');
+                        await handleCompleteJobInModal({ navigateToCompleteStep: true });
+                      } catch (err: any) {
+                        toast.error(err.message || 'Failed to save signature');
+                      } finally {
+                        setIsSavingSignature(false);
+                      }
+                    }}
+                    disabled={isSavingSignature || isSubmitting}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {isSavingSignature ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving Signature...
+                      </>
+                    ) : (
+                      'Save Signature & Complete Job'
+                    )}
                   </Button>
                 </div>
               </div>

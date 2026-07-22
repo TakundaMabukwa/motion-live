@@ -34,7 +34,7 @@ import {
   Car,
   Play,
   Camera,
-  RefreshCw
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
