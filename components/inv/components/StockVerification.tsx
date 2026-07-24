@@ -3,11 +3,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, RefreshCw, Loader2, Package, Users, Wrench, Car,
-  ChevronDown, ChevronUp, Filter,
+  ChevronDown, ChevronUp, Eye, Trash2, CheckCircle2, XCircle, AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+
+interface StockItem {
+  id: number;
+  serial_number: string;
+  category_code: string;
+  status: string;
+  company: string | null;
+  container: string | null;
+  direction: string | null;
+  assigned_to_technician: string | null;
+  job_card_id: string | null;
+  notes: string | null;
+  client_code?: string;
+  cost_code?: string;
+  technician_email?: string;
+  technician_name?: string;
+  code?: string;
+  description?: string;
+}
 
 interface VehicleMatch {
   vehicle_id: number;
@@ -19,8 +42,9 @@ interface VehicleMatch {
   vehicle_company: string | null;
   column_name: string;
   serial_number: string;
+  normalized_value: string;
   bucket: "soltrack" | "client" | "technician";
-  stock_item: Record<string, unknown>;
+  stock_item: StockItem;
 }
 
 interface VerificationData {
@@ -64,6 +88,22 @@ export default function StockVerification() {
   const [bucketFilter, setBucketFilter] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
+  const [verifyModal, setVerifyModal] = useState<{
+    open: boolean;
+    match: VehicleMatch | null;
+    verifying: boolean;
+    verified: boolean;
+    verifiedItem: StockItem | null;
+    deleting: boolean;
+  }>({
+    open: false,
+    match: null,
+    verifying: false,
+    verified: false,
+    verifiedItem: null,
+    deleting: false,
+  });
+
   const fetchData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
@@ -78,6 +118,7 @@ export default function StockVerification() {
       setData(result);
     } catch (err) {
       console.error("Error fetching stock verification:", err);
+      toast.error("Failed to load stock verification data");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -101,6 +142,97 @@ export default function StockVerification() {
     });
   }, []);
 
+  const openVerifyModal = useCallback((match: VehicleMatch) => {
+    setVerifyModal({
+      open: true,
+      match,
+      verifying: true,
+      verified: false,
+      verifiedItem: null,
+      deleting: false,
+    });
+  }, []);
+
+  const closeVerifyModal = useCallback(() => {
+    setVerifyModal((prev) => ({ ...prev, open: false }));
+  }, []);
+
+  useEffect(() => {
+    if (!verifyModal.open || !verifyModal.match) return;
+
+    const match = verifyModal.match;
+
+    const verifyItem = async () => {
+      try {
+        const params = new URLSearchParams({
+          bucket: match.bucket,
+          serial_number: match.serial_number,
+        });
+        if (match.bucket === "technician" && match.stock_item.technician_email) {
+          params.set("technician_email", match.stock_item.technician_email);
+        }
+
+        const res = await fetch(`/api/inv/stock-verify?${params.toString()}`, { cache: "no-store" });
+        if (res.ok) {
+          const result = await res.json();
+          setVerifyModal((prev) => ({
+            ...prev,
+            verifying: false,
+            verified: result.found === true,
+            verifiedItem: result.item || null,
+          }));
+        } else {
+          setVerifyModal((prev) => ({ ...prev, verifying: false, verified: false }));
+        }
+      } catch {
+        setVerifyModal((prev) => ({ ...prev, verifying: false, verified: false }));
+      }
+    };
+
+    verifyItem();
+  }, [verifyModal.open, verifyModal.match]);
+
+  const handleDelete = useCallback(async () => {
+    if (!verifyModal.match || !verifyModal.verifiedItem) return;
+
+    const match = verifyModal.match;
+    const item = verifyModal.verifiedItem;
+
+    if (!window.confirm(`Delete item ${item.serial_number} from ${BUCKET_LABELS[match.bucket]}?`)) return;
+
+    setVerifyModal((prev) => ({ ...prev, deleting: true }));
+
+    try {
+      const body: Record<string, unknown> = {
+        bucket: match.bucket,
+        stock_id: item.id,
+        serial_number: item.serial_number,
+      };
+      if (match.bucket === "technician" && match.stock_item.technician_email) {
+        body.technician_email = match.stock_item.technician_email;
+      }
+
+      const res = await fetch("/api/inv/stock-verify", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete item");
+      }
+
+      toast.success(`Item ${item.serial_number} deleted from ${BUCKET_LABELS[match.bucket]}`);
+      closeVerifyModal();
+      fetchData(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete item");
+    } finally {
+      setVerifyModal((prev) => ({ ...prev, deleting: false }));
+    }
+  }, [verifyModal.match, verifyModal.verifiedItem, closeVerifyModal, fetchData]);
+
   const filteredMatches = useMemo(() => {
     if (!data) return [];
     if (bucketFilter === "all") return data.vehicleMatches;
@@ -119,7 +251,6 @@ export default function StockVerification() {
 
   return (
     <div className="space-y-4">
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats?.map((m) => {
           const Icon = m.icon;
@@ -139,15 +270,10 @@ export default function StockVerification() {
         })}
       </div>
 
-      {/* Search + Bucket Filter */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-            Vehicle Stock Verification
-          </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Cross-references vehicle serial numbers/IPs against all stock buckets.
-          </p>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Vehicle Stock Verification</h2>
+          <p className="mt-1 text-sm text-slate-600">Cross-references vehicle serial numbers/IPs against all stock buckets. Click View to verify and manage.</p>
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
           <div className="relative min-w-0 w-full sm:max-w-xs">
@@ -169,7 +295,6 @@ export default function StockVerification() {
         </div>
       </div>
 
-      {/* Bucket Filter Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-200">
         {[
           { id: "all", label: "All Matches" },
@@ -192,12 +317,9 @@ export default function StockVerification() {
         ))}
       </div>
 
-      {/* Results Table */}
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="border-b border-slate-100 pb-3">
-          <CardTitle className="text-base">
-            Vehicle Matches ({filteredMatches.length})
-          </CardTitle>
+          <CardTitle className="text-base">Vehicle Matches ({filteredMatches.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -215,7 +337,7 @@ export default function StockVerification() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px] border-collapse text-xs">
+              <table className="w-full min-w-[1100px] border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/80">
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Vehicle</th>
@@ -225,7 +347,8 @@ export default function StockVerification() {
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Column</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Serial / IP</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Bucket</th>
-                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Stock Details</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Stock Category</th>
+                    <th className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-slate-500">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -233,7 +356,6 @@ export default function StockVerification() {
                     const isExpanded = expandedRows.has(idx);
                     const bucketLabel = BUCKET_LABELS[match.bucket] || match.bucket;
                     const bucketColor = BUCKET_COLORS[match.bucket] || "bg-slate-100 text-slate-800";
-                    const stockItem = match.stock_item;
 
                     return (
                       <tr key={idx} className="border-b border-slate-100 align-top hover:bg-slate-50/60">
@@ -261,35 +383,49 @@ export default function StockVerification() {
                             {bucketLabel}
                           </Badge>
                         </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleRow(idx)}
-                            className="flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800"
-                          >
-                            {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                            {isExpanded ? "Hide" : "Details"}
-                          </button>
+                        <td className="px-3 py-2 text-slate-700 text-[11px]">
+                          {match.stock_item.category_code || match.stock_item.code || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleRow(idx)}
+                              className="flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800"
+                            >
+                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {isExpanded ? "Hide" : "Details"}
+                            </button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[10px] px-2 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                              onClick={() => openVerifyModal(match)}
+                            >
+                              <Eye className="mr-1 h-3 w-3" /> View
+                            </Button>
+                          </div>
                           {isExpanded && (
                             <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-[11px] space-y-1">
-                              <p><strong>Code:</strong> {String(stockItem?.category_code || stockItem?.code || "—")}</p>
-                              <p><strong>Description:</strong> {String(stockItem?.description || "—")}</p>
-                              <p><strong>Status:</strong> {String(stockItem?.status || "—")}</p>
-                              <p><strong>Company:</strong> {String(stockItem?.company || "—")}</p>
+                              <p><strong>Code:</strong> {match.stock_item.category_code || match.stock_item.code || "—"}</p>
+                              <p><strong>Description:</strong> {match.stock_item.description || "—"}</p>
+                              <p><strong>Status:</strong> {match.stock_item.status || "—"}</p>
+                              <p><strong>Company:</strong> {match.stock_item.company || "—"}</p>
+                              <p><strong>Vehicle Company:</strong> {match.vehicle_company || "—"}</p>
                               {match.bucket === "client" && (
                                 <>
-                                  <p><strong>Client:</strong> {String(stockItem?.client_code || "—")}</p>
-                                  <p><strong>Cost Code:</strong> {String(stockItem?.cost_code || "—")}</p>
+                                  <p><strong>Client:</strong> {match.stock_item.client_code || "—"}</p>
+                                  <p><strong>Cost Code:</strong> {match.stock_item.cost_code || "—"}</p>
                                 </>
                               )}
                               {match.bucket === "technician" && (
                                 <>
-                                  <p><strong>Technician:</strong> {String(stockItem?.technician_email || "—")}</p>
-                                  <p><strong>Tech Name:</strong> {String(stockItem?.technician_name || "—")}</p>
+                                  <p><strong>Technician:</strong> {match.stock_item.technician_email || "—"}</p>
+                                  <p><strong>Tech Name:</strong> {match.stock_item.technician_name || "—"}</p>
                                 </>
                               )}
                               {match.bucket === "soltrack" && (
-                                <p><strong>Container:</strong> {String(stockItem?.container || "—")}</p>
+                                <p><strong>Container:</strong> {match.stock_item.container || "—"}</p>
                               )}
                             </div>
                           )}
@@ -303,6 +439,92 @@ export default function StockVerification() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={verifyModal.open} onOpenChange={(open) => { if (!open) closeVerifyModal(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Verify Stock Item
+            </DialogTitle>
+          </DialogHeader>
+
+          {verifyModal.match && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h4 className="text-sm font-semibold text-slate-900 mb-2">Vehicle Information</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <p><strong>Reg:</strong> {verifyModal.match.vehicle_reg || "N/A"}</p>
+                  <p><strong>Fleet:</strong> {verifyModal.match.vehicle_fleet || "N/A"}</p>
+                  <p><strong>Make:</strong> {verifyModal.match.vehicle_make || "N/A"}</p>
+                  <p><strong>Model:</strong> {verifyModal.match.vehicle_model || "N/A"}</p>
+                  <p><strong>Account:</strong> {verifyModal.match.vehicle_account || "N/A"}</p>
+                  <p><strong>Company:</strong> {verifyModal.match.vehicle_company || "N/A"}</p>
+                </div>
+                <div className="mt-2 text-xs">
+                  <p><strong>Column:</strong> {formatColumnLabel(verifyModal.match.column_name)}</p>
+                  <p><strong>Serial/IP:</strong> <span className="font-mono">{verifyModal.match.serial_number}</span></p>
+                </div>
+              </div>
+
+              <div className={`rounded-lg border p-4 ${
+                verifyModal.verifying
+                  ? "border-blue-200 bg-blue-50"
+                  : verifyModal.verified
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-red-200 bg-red-50"
+              }`}>
+                {verifyModal.verifying ? (
+                  <div className="flex items-center gap-2 text-sm text-blue-800">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Verifying item in {BUCKET_LABELS[verifyModal.match.bucket]}...
+                  </div>
+                ) : verifyModal.verified ? (
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-emerald-800 mb-2">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Match Confirmed — Item Found
+                    </div>
+                    {verifyModal.verifiedItem && (
+                      <div className="text-xs space-y-1 text-emerald-900">
+                        <p><strong>Serial:</strong> <span className="font-mono">{verifyModal.verifiedItem.serial_number}</span></p>
+                        <p><strong>Category:</strong> {verifyModal.verifiedItem.category_code || verifyModal.verifiedItem.code || "—"}</p>
+                        <p><strong>Status:</strong> {verifyModal.verifiedItem.status || "—"}</p>
+                        <p><strong>Description:</strong> {verifyModal.verifiedItem.description || "—"}</p>
+                        {verifyModal.match.bucket === "technician" && (
+                          <p><strong>Assigned To:</strong> {verifyModal.verifiedItem.technician_name || verifyModal.verifiedItem.technician_email || "—"}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-red-800">
+                    <XCircle className="h-4 w-4" />
+                    Item not found in {BUCKET_LABELS[verifyModal.match.bucket]}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={closeVerifyModal}>Close</Button>
+                {verifyModal.verified && verifyModal.verifiedItem && (
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={verifyModal.deleting}
+                  >
+                    {verifyModal.deleting ? (
+                      <><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Deleting...</>
+                    ) : (
+                      <><Trash2 className="mr-1 h-3 w-3" /> Delete from {BUCKET_LABELS[verifyModal.match.bucket]}</>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

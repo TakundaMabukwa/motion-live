@@ -4,11 +4,22 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 const BATCH = 1000;
 
-const normalizeSerial = (val: unknown) =>
+const normalizeForMatch = (val: unknown) =>
   String(val || "")
     .trim()
     .toLowerCase()
-    .replace(/[\s\-_.]/g, "");
+    .replace(/[\s\-_]/g, "");
+
+const normalizeIP = (val: unknown) => {
+  let raw = String(val || "").trim().toLowerCase();
+  if (!raw) return "";
+  raw = raw.replace(/[\s\-_]/g, "");
+  const colonIdx = raw.indexOf(":");
+  if (colonIdx > 0) raw = raw.substring(0, colonIdx);
+  const slashIdx = raw.indexOf("/");
+  if (slashIdx > 0) raw = raw.substring(0, slashIdx);
+  return raw;
+};
 
 const SERIAL_NUMBER_COLUMNS = [
   "skylink_trailer_unit_serial_number",
@@ -37,21 +48,21 @@ const IP_COLUMNS = [
   "vw100ip_driver_facing_ip",
 ];
 
+const ALL_COLUMNS_TO_CHECK = [...SERIAL_NUMBER_COLUMNS, ...IP_COLUMNS];
+const IP_COLUMN_SET = new Set(IP_COLUMNS);
+
 async function fetchAllRows(
   client: ReturnType<typeof createServiceClient>,
   table: string,
   columns: string,
-  filters?: { column: string; operator: string; value: unknown }[],
-  orderColumn?: string
+  filters?: { column: string; operator: string; value: unknown }[]
 ) {
   let query = client.from(table).select(columns);
   if (filters) {
     for (const f of filters) {
       if (f.operator === "not.is") query = query.not(f.column, "is", f.value);
-      else if (f.operator === "eq") query = query.eq(f.column, f.value);
     }
   }
-  if (orderColumn) query = query.order(orderColumn, { ascending: false });
 
   let from = 0;
   const allRows: Record<string, unknown>[] = [];
@@ -67,6 +78,40 @@ async function fetchAllRows(
     from += BATCH;
   }
   return allRows;
+}
+
+interface StockItem {
+  id: number;
+  serial_number: string;
+  category_code: string;
+  status: string;
+  company: string | null;
+  container: string | null;
+  direction: string | null;
+  assigned_to_technician: string | null;
+  job_card_id: string | null;
+  notes: string | null;
+  client_code?: string;
+  cost_code?: string;
+  technician_email?: string;
+  technician_name?: string;
+  code?: string;
+  description?: string;
+}
+
+interface VehicleMatch {
+  vehicle_id: number;
+  vehicle_reg: string | null;
+  vehicle_fleet: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_account: string | null;
+  vehicle_company: string | null;
+  column_name: string;
+  serial_number: string;
+  normalized_value: string;
+  bucket: "soltrack" | "client" | "technician";
+  stock_item: StockItem;
 }
 
 export async function GET(request: NextRequest) {
@@ -88,149 +133,77 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim().toLowerCase();
 
-    // 1. Fetch ALL Soltrack stock (inventory_items) — batched
     const soltrackItems = await fetchAllRows(
       serviceSupabase,
       "inventory_items",
-      "id, category_code, serial_number, status, assigned_to_technician, company, notes, container, direction, job_card_id",
-      undefined,
-      "id"
+      "id, category_code, serial_number, status, assigned_to_technician, company, notes, container, direction, job_card_id"
     );
 
-    // 2. Fetch ALL Client stock (client_inventory_items) — batched
     const clientItems = await fetchAllRows(
       serviceSupabase,
       "client_inventory_items",
-      "id, client_code, cost_code, category_code, serial_number, status, assigned_to_technician, company, notes, container, direction, job_card_id",
-      undefined,
-      "id"
+      "id, client_code, cost_code, category_code, serial_number, status, assigned_to_technician, company, notes, container, direction, job_card_id"
     );
 
-    // 3. Fetch ALL Technician stock (tech_stock.assigned_parts) — batched
     const techStockRows = await fetchAllRows(
       serviceSupabase,
       "tech_stock",
       "id, technician_email, name, assigned_parts",
-      [{ column: "assigned_parts", operator: "not.is", value: null }],
-      "id"
+      [{ column: "assigned_parts", operator: "not.is", value: null }]
     );
 
-    const techItems: Array<{
-      id: number;
-      technician_email: string;
-      technician_name: string;
-      code: string;
-      description: string;
-      serial_number: string;
-      stock_id: number;
-      quantity: number;
-      supplier: string;
-      cost_per_unit: number;
-      total_cost: number;
-    }> = [];
-
+    const techItems: StockItem[] = [];
     for (const row of techStockRows) {
       const parts = Array.isArray(row.assigned_parts) ? row.assigned_parts : [];
       for (const part of parts) {
         if (part && part.serial_number) {
           techItems.push({
             id: row.id as number,
+            serial_number: String(part.serial_number).trim(),
+            category_code: (part.code as string) || "",
+            status: "ASSIGNED",
+            company: null,
+            container: null,
+            direction: null,
+            assigned_to_technician: (row.technician_email as string) || null,
+            job_card_id: null,
+            notes: null,
             technician_email: (row.technician_email as string) || "",
             technician_name: (row.name as string) || "",
             code: (part.code as string) || "",
             description: (part.description as string) || "",
-            serial_number: String(part.serial_number).trim(),
-            stock_id: (part.stock_id as number) || 0,
-            quantity: (part.quantity as number) || 1,
-            supplier: (part.supplier as string) || "",
-            cost_per_unit: (part.cost_per_unit as number) || 0,
-            total_cost: (part.total_cost as number) || 0,
           });
         }
       }
     }
 
-    // 4. Fetch ALL vehicles_duplicate — batched
     const vehicles = await fetchAllRows(
       serviceSupabase,
       "vehicles_duplicate",
       "*"
     );
 
-    // Log vehicle columns for debugging
-    if (vehicles.length > 0) {
-      console.log(`[Stock Verification] Vehicle columns:`, Object.keys(vehicles[0]).join(", "));
-      console.log(`[Stock Verification] First vehicle sample:`, JSON.stringify({
-        id: vehicles[0].id,
-        reg: vehicles[0].reg,
-        fleet_number: vehicles[0].fleet_number,
-        skylink_pro_serial_number: vehicles[0].skylink_pro_serial_number,
-        skylink_pro_ip: vehicles[0].skylink_pro_ip,
-        skylink_trailer_unit_serial_number: vehicles[0].skylink_trailer_unit_serial_number,
-        new_account_number: vehicles[0].new_account_number,
-      }, null, 2));
-    }
-
-    console.log(`[Stock Verification] Fetched: soltrack=${soltrackItems.length}, client=${clientItems.length}, tech=${techItems.length}, vehicles=${vehicles.length}`);
-
-    // Log sample serial numbers for debugging
-    if (soltrackItems.length > 0) {
-      console.log(`[Stock Verification] Sample soltrack serials:`, soltrackItems.slice(0, 3).map(i => String(i.serial_number || "").trim()));
-    }
-    if (clientItems.length > 0) {
-      console.log(`[Stock Verification] Sample client serials:`, clientItems.slice(0, 3).map(i => String(i.serial_number || "").trim()));
-    }
-    if (techItems.length > 0) {
-      console.log(`[Stock Verification] Sample tech serials:`, techItems.slice(0, 3).map(i => i.serial_number));
-    }
-    if (vehicles.length > 0) {
-      const sampleVehicle = vehicles[0];
-      const sampleSerials = SERIAL_NUMBER_COLUMNS
-        .filter(col => sampleVehicle[col])
-        .map(col => `${col}=${sampleVehicle[col]}`);
-      const sampleIps = IP_COLUMNS
-        .filter(col => sampleVehicle[col])
-        .map(col => `${col}=${sampleVehicle[col]}`);
-      console.log(`[Stock Verification] Sample vehicle serials:`, sampleSerials);
-      console.log(`[Stock Verification] Sample vehicle IPs:`, sampleIps);
-      console.log(`[Stock Verification] Sample vehicle reg:`, sampleVehicle.reg);
-    }
-
-    // 5. Build serial number lookup maps for each bucket
-    const soltrackBySerial = new Map<string, Record<string, unknown>>();
+    const soltrackBySerial = new Map<string, StockItem>();
     for (const item of soltrackItems) {
-      const sn = normalizeSerial(item.serial_number);
-      if (sn) soltrackBySerial.set(sn, item);
+      const sn = normalizeForMatch(item.serial_number);
+      if (sn) soltrackBySerial.set(sn, item as unknown as StockItem);
     }
 
-    const clientBySerial = new Map<string, Record<string, unknown>>();
+    const clientBySerial = new Map<string, StockItem>();
     for (const item of clientItems) {
-      const sn = normalizeSerial(item.serial_number);
-      if (sn) clientBySerial.set(sn, item);
+      const sn = normalizeForMatch(item.serial_number);
+      if (sn) clientBySerial.set(sn, item as unknown as StockItem);
     }
 
-    const techBySerial = new Map<string, Record<string, unknown>>();
+    const techBySerial = new Map<string, StockItem>();
     for (const item of techItems) {
-      const sn = normalizeSerial(item.serial_number);
-      if (sn) techBySerial.set(sn, item as unknown as Record<string, unknown>);
+      const sn = normalizeForMatch(item.serial_number);
+      if (sn) techBySerial.set(sn, item);
     }
 
-    console.log(`[Stock Verification] Lookup maps: soltrack=${soltrackBySerial.size}, client=${clientBySerial.size}, tech=${techBySerial.size}`);
+    console.log(`[Stock Verification] Fetched: soltrack=${soltrackItems.length} (map=${soltrackBySerial.size}), client=${clientItems.length} (map=${clientBySerial.size}), tech=${techItems.length} (map=${techBySerial.size}), vehicles=${vehicles.length}`);
 
-    // 6. Cross-reference vehicles_duplicate serial numbers against stock buckets
-    const vehicleMatches: Array<{
-      vehicle_id: number;
-      vehicle_reg: string | null;
-      vehicle_fleet: string | null;
-      vehicle_make: string | null;
-      vehicle_model: string | null;
-      vehicle_account: string | null;
-      vehicle_company: string | null;
-      column_name: string;
-      serial_number: string;
-      bucket: "soltrack" | "client" | "technician";
-      stock_item: Record<string, unknown>;
-    }> = [];
+    const vehicleMatches: VehicleMatch[] = [];
 
     for (const v of vehicles) {
       const vehicleReg = (v.reg as string) || null;
@@ -240,31 +213,33 @@ export async function GET(request: NextRequest) {
       const vehicleAccount = (v.new_account_number as string) || null;
       const vehicleCompany = (v.company as string) || null;
 
-      // Check serial number columns
-      for (const col of SERIAL_NUMBER_COLUMNS) {
-        const rawVal = normalizeSerial(v[col]);
+      for (const col of ALL_COLUMNS_TO_CHECK) {
+        const rawVal = v[col];
         if (!rawVal) continue;
 
-        const soltrackMatch = soltrackBySerial.get(rawVal);
-        if (soltrackMatch) {
-          vehicleMatches.push({
-            vehicle_id: v.id as number,
-            vehicle_reg: vehicleReg,
-            vehicle_fleet: vehicleFleet,
-            vehicle_make: vehicleMake,
-            vehicle_model: vehicleModel,
-            vehicle_account: vehicleAccount,
-            vehicle_company: vehicleCompany,
-            column_name: col,
-            serial_number: v[col] as string,
-            bucket: "soltrack",
-            stock_item: soltrackMatch,
-          });
-          continue;
+        const isIP = IP_COLUMN_SET.has(col);
+        const normalized = isIP ? normalizeIP(rawVal) : normalizeForMatch(rawVal);
+        if (!normalized) continue;
+
+        let match: StockItem | undefined;
+        let bucket: "soltrack" | "client" | "technician" = "soltrack";
+
+        match = soltrackBySerial.get(normalized);
+        if (match) {
+          bucket = "soltrack";
+        } else {
+          match = clientBySerial.get(normalized);
+          if (match) {
+            bucket = "client";
+          } else {
+            match = techBySerial.get(normalized);
+            if (match) {
+              bucket = "technician";
+            }
+          }
         }
 
-        const clientMatch = clientBySerial.get(rawVal);
-        if (clientMatch) {
+        if (match) {
           vehicleMatches.push({
             vehicle_id: v.id as number,
             vehicle_reg: vehicleReg,
@@ -274,120 +249,15 @@ export async function GET(request: NextRequest) {
             vehicle_account: vehicleAccount,
             vehicle_company: vehicleCompany,
             column_name: col,
-            serial_number: v[col] as string,
-            bucket: "client",
-            stock_item: clientMatch,
-          });
-          continue;
-        }
-
-        const techMatch = techBySerial.get(rawVal);
-        if (techMatch) {
-          vehicleMatches.push({
-            vehicle_id: v.id as number,
-            vehicle_reg: vehicleReg,
-            vehicle_fleet: vehicleFleet,
-            vehicle_make: vehicleMake,
-            vehicle_model: vehicleModel,
-            vehicle_account: vehicleAccount,
-            vehicle_company: vehicleCompany,
-            column_name: col,
-            serial_number: v[col] as string,
-            bucket: "technician",
-            stock_item: techMatch,
-          });
-        }
-      }
-
-      // Check IP columns
-      for (const col of IP_COLUMNS) {
-        const rawVal = normalizeSerial(v[col]);
-        if (!rawVal) continue;
-
-        const soltrackMatch = soltrackBySerial.get(rawVal);
-        if (soltrackMatch) {
-          vehicleMatches.push({
-            vehicle_id: v.id as number,
-            vehicle_reg: vehicleReg,
-            vehicle_fleet: vehicleFleet,
-            vehicle_make: vehicleMake,
-            vehicle_model: vehicleModel,
-            vehicle_account: vehicleAccount,
-            vehicle_company: vehicleCompany,
-            column_name: col,
-            serial_number: v[col] as string,
-            bucket: "soltrack",
-            stock_item: soltrackMatch,
-          });
-          continue;
-        }
-
-        const clientMatch = clientBySerial.get(rawVal);
-        if (clientMatch) {
-          vehicleMatches.push({
-            vehicle_id: v.id as number,
-            vehicle_reg: vehicleReg,
-            vehicle_fleet: vehicleFleet,
-            vehicle_make: vehicleMake,
-            vehicle_model: vehicleModel,
-            vehicle_account: vehicleAccount,
-            vehicle_company: vehicleCompany,
-            column_name: col,
-            serial_number: v[col] as string,
-            bucket: "client",
-            stock_item: clientMatch,
-          });
-          continue;
-        }
-
-        const techMatch = techBySerial.get(rawVal);
-        if (techMatch) {
-          vehicleMatches.push({
-            vehicle_id: v.id as number,
-            vehicle_reg: vehicleReg,
-            vehicle_fleet: vehicleFleet,
-            vehicle_make: vehicleMake,
-            vehicle_model: vehicleModel,
-            vehicle_account: vehicleAccount,
-            vehicle_company: vehicleCompany,
-            column_name: col,
-            serial_number: v[col] as string,
-            bucket: "technician",
-            stock_item: techMatch,
+            serial_number: String(rawVal),
+            normalized_value: normalized,
+            bucket,
+            stock_item: match,
           });
         }
       }
     }
 
-    console.log(`[Stock Verification] Total vehicle matches: ${vehicleMatches.length}`);
-
-    // Log first few matches for debugging
-    if (vehicleMatches.length > 0) {
-      console.log(`[Stock Verification] First match:`, JSON.stringify(vehicleMatches[0], null, 2));
-    }
-
-    // Debug: check if any vehicle serial matches anything in stock maps
-    if (vehicles.length > 0 && vehicleMatches.length === 0) {
-      const testVehicle = vehicles[0];
-      console.log(`[Stock Verification] Debugging first vehicle (id=${testVehicle.id}, reg=${testVehicle.reg}):`);
-      for (const col of [...SERIAL_NUMBER_COLUMNS, ...IP_COLUMNS]) {
-        const rawVal = normalizeSerial(testVehicle[col]);
-        if (!rawVal) continue;
-        const inSoltrack = soltrackBySerial.has(rawVal);
-        const inClient = clientBySerial.has(rawVal);
-        const inTech = techBySerial.has(rawVal);
-        console.log(`[Stock Verification]   ${col}="${testVehicle[col]}" -> normalized="${rawVal}" -> soltrack=${inSoltrack}, client=${inClient}, tech=${inTech}`);
-      }
-      // Also log all stock keys for comparison
-      const soltrackKeys = Array.from(soltrackBySerial.keys()).slice(0, 5);
-      const clientKeys = Array.from(clientBySerial.keys()).slice(0, 5);
-      const techKeys = Array.from(techBySerial.keys()).slice(0, 5);
-      console.log(`[Stock Verification] Soltrack keys sample:`, soltrackKeys);
-      console.log(`[Stock Verification] Client keys sample:`, clientKeys);
-      console.log(`[Stock Verification] Tech keys sample:`, techKeys);
-    }
-
-    // 7. Apply search filter to vehicle matches
     const filteredMatches = search
       ? vehicleMatches.filter((m) => {
           const haystack = [
@@ -399,23 +269,16 @@ export async function GET(request: NextRequest) {
             m.vehicle_company,
             m.serial_number,
             m.column_name,
-            String(m.stock_item?.category_code || ""),
-            String(m.stock_item?.description || ""),
-            String(m.stock_item?.code || ""),
-            String(m.stock_item?.client_code || ""),
-            String(m.stock_item?.technician_email || ""),
+            m.stock_item.category_code,
+            m.stock_item.description || "",
+            m.stock_item.code || "",
+            m.stock_item.client_code || "",
+            m.stock_item.technician_email || "",
           ].join(" ").toLowerCase();
           return haystack.includes(search);
         })
       : vehicleMatches;
 
-    // 8. Compute summary stats
-    const soltrackCount = soltrackItems.length;
-    const clientCount = clientItems.length;
-    const techCount = techItems.length;
-    const vehicleMatchCount = filteredMatches.length;
-
-    // 9. Compute bucket breakdown for vehicle matches
     const bucketBreakdown = {
       soltrack: filteredMatches.filter((m) => m.bucket === "soltrack").length,
       client: filteredMatches.filter((m) => m.bucket === "client").length,
@@ -423,15 +286,101 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({
-      soltrackCount,
-      clientCount,
-      techCount,
-      vehicleMatchCount,
+      soltrackCount: soltrackItems.length,
+      clientCount: clientItems.length,
+      techCount: techItems.length,
+      vehicleMatchCount: filteredMatches.length,
       bucketBreakdown,
       vehicleMatches: filteredMatches,
     });
   } catch (error) {
     console.error("Error in stock verification GET:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const serviceSupabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const body = await request.json();
+    const { bucket, stock_id, serial_number, technician_email } = body;
+
+    if (!bucket || !serial_number) {
+      return NextResponse.json({ error: "bucket and serial_number required" }, { status: 400 });
+    }
+
+    if (bucket === "soltrack") {
+      if (!stock_id) {
+        return NextResponse.json({ error: "stock_id required for soltrack" }, { status: 400 });
+      }
+      const { error } = await serviceSupabase
+        .from("inventory_items")
+        .delete()
+        .eq("id", stock_id);
+      if (error) throw error;
+      return NextResponse.json({ success: true, message: "Deleted from Soltrack stock" });
+    }
+
+    if (bucket === "client") {
+      if (!stock_id) {
+        return NextResponse.json({ error: "stock_id required for client" }, { status: 400 });
+      }
+      const { error } = await serviceSupabase
+        .from("client_inventory_items")
+        .delete()
+        .eq("id", stock_id);
+      if (error) throw error;
+      return NextResponse.json({ success: true, message: "Deleted from Client stock" });
+    }
+
+    if (bucket === "technician") {
+      if (!technician_email || !serial_number) {
+        return NextResponse.json({ error: "technician_email and serial_number required" }, { status: 400 });
+      }
+      const { data: techRow, error: fetchError } = await serviceSupabase
+        .from("tech_stock")
+        .select("id, assigned_parts")
+        .eq("technician_email", technician_email)
+        .single();
+      if (fetchError || !techRow) {
+        return NextResponse.json({ error: "Technician stock not found" }, { status: 404 });
+      }
+
+      const parts = Array.isArray(techRow.assigned_parts) ? techRow.assigned_parts : [];
+      const normalizedTarget = normalizeForMatch(serial_number);
+      const filteredParts = parts.filter((p: Record<string, unknown>) => {
+        const pSn = normalizeForMatch(p.serial_number);
+        return pSn !== normalizedTarget;
+      });
+
+      if (filteredParts.length === parts.length) {
+        return NextResponse.json({ error: "Item not found in technician stock" }, { status: 404 });
+      }
+
+      const { error: updateError } = await serviceSupabase
+        .from("tech_stock")
+        .update({ assigned_parts: filteredParts })
+        .eq("id", techRow.id);
+      if (updateError) throw updateError;
+      return NextResponse.json({ success: true, message: "Removed from Technician stock" });
+    }
+
+    return NextResponse.json({ error: "Invalid bucket" }, { status: 400 });
+  } catch (error) {
+    console.error("Error in stock verification DELETE:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
