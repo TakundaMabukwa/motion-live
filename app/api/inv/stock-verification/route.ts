@@ -20,6 +20,11 @@ const SERIAL_NUMBER_COLUMNS = [
   "sim_id",
   "pfk_corpconnect_sim_number",
   "pfk_corpconnect_data_number",
+  "beame_1",
+  "beame_2",
+  "beame_3",
+  "beame_4",
+  "beame_5",
 ];
 
 const IP_COLUMNS = [
