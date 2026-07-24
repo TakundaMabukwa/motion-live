@@ -42,7 +42,6 @@ interface VehicleMatch {
   vehicle_company: string | null;
   column_name: string;
   serial_number: string;
-  normalized_value: string;
   bucket: "soltrack" | "client" | "technician";
   stock_item: StockItem;
 }
@@ -205,7 +204,6 @@ export default function StockVerification() {
     try {
       const body: Record<string, unknown> = {
         bucket: match.bucket,
-        stock_id: item.id,
         serial_number: item.serial_number,
       };
       if (match.bucket === "technician" && match.stock_item.technician_email) {
@@ -224,6 +222,24 @@ export default function StockVerification() {
       }
 
       toast.success(`Item ${item.serial_number} deleted from ${BUCKET_LABELS[match.bucket]}`);
+
+      setData((prev) => {
+        if (!prev) return prev;
+        const filtered = prev.vehicleMatches.filter(
+          (m) => !(m.serial_number === match.serial_number && m.bucket === match.bucket)
+        );
+        return {
+          ...prev,
+          vehicleMatchCount: filtered.length,
+          vehicleMatches: filtered,
+          bucketBreakdown: {
+            soltrack: filtered.filter((m) => m.bucket === "soltrack").length,
+            client: filtered.filter((m) => m.bucket === "client").length,
+            technician: filtered.filter((m) => m.bucket === "technician").length,
+          },
+        };
+      });
+
       closeVerifyModal();
       fetchData(true);
     } catch (err) {

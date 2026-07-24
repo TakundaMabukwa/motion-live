@@ -4,23 +4,6 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 const BATCH = 1000;
 
-const normalizeForMatch = (val: unknown) =>
-  String(val || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s\-_]/g, "");
-
-const normalizeIP = (val: unknown) => {
-  let raw = String(val || "").trim().toLowerCase();
-  if (!raw) return "";
-  raw = raw.replace(/[\s\-_]/g, "");
-  const colonIdx = raw.indexOf(":");
-  if (colonIdx > 0) raw = raw.substring(0, colonIdx);
-  const slashIdx = raw.indexOf("/");
-  if (slashIdx > 0) raw = raw.substring(0, slashIdx);
-  return raw;
-};
-
 const SERIAL_NUMBER_COLUMNS = [
   "skylink_trailer_unit_serial_number",
   "sky_on_batt_ign_unit_serial_number",
@@ -49,7 +32,6 @@ const IP_COLUMNS = [
 ];
 
 const ALL_COLUMNS_TO_CHECK = [...SERIAL_NUMBER_COLUMNS, ...IP_COLUMNS];
-const IP_COLUMN_SET = new Set(IP_COLUMNS);
 
 async function fetchAllRows(
   client: ReturnType<typeof createServiceClient>,
@@ -109,7 +91,6 @@ interface VehicleMatch {
   vehicle_company: string | null;
   column_name: string;
   serial_number: string;
-  normalized_value: string;
   bucket: "soltrack" | "client" | "technician";
   stock_item: StockItem;
 }
@@ -133,6 +114,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim().toLowerCase();
 
+    const vehicles = await fetchAllRows(
+      serviceSupabase,
+      "vehicles_duplicate",
+      `id, reg, fleet_number, make, model, new_account_number, company, ${ALL_COLUMNS_TO_CHECK.join(", ")}`
+    );
+
+    const allSerials = new Set<string>();
+    for (const v of vehicles) {
+      for (const col of ALL_COLUMNS_TO_CHECK) {
+        const rawVal = v[col];
+        if (!rawVal) continue;
+        const serialVal = String(rawVal).trim();
+        if (serialVal) allSerials.add(serialVal);
+      }
+    }
+
+    const serialArray = Array.from(allSerials);
+
     const soltrackItems = await fetchAllRows(
       serviceSupabase,
       "inventory_items",
@@ -145,6 +144,18 @@ export async function GET(request: NextRequest) {
       "id, client_code, cost_code, category_code, serial_number, status, assigned_to_technician, company, notes, container, direction, job_card_id"
     );
 
+    const soltrackBySerial = new Map<string, StockItem>();
+    for (const item of soltrackItems) {
+      const sn = String(item.serial_number || "").trim();
+      if (sn) soltrackBySerial.set(sn, item as unknown as StockItem);
+    }
+
+    const clientBySerial = new Map<string, StockItem>();
+    for (const item of clientItems) {
+      const sn = String(item.serial_number || "").trim();
+      if (sn) clientBySerial.set(sn, item as unknown as StockItem);
+    }
+
     const techStockRows = await fetchAllRows(
       serviceSupabase,
       "tech_stock",
@@ -152,56 +163,34 @@ export async function GET(request: NextRequest) {
       [{ column: "assigned_parts", operator: "not.is", value: null }]
     );
 
-    const techItems: StockItem[] = [];
+    const techBySerial = new Map<string, StockItem & { _techRowId?: number }>();
+    const serialSet = new Set(serialArray);
     for (const row of techStockRows) {
       const parts = Array.isArray(row.assigned_parts) ? row.assigned_parts : [];
       for (const part of parts) {
         if (part && part.serial_number) {
-          techItems.push({
-            id: row.id as number,
-            serial_number: String(part.serial_number).trim(),
-            category_code: (part.code as string) || "",
-            status: "ASSIGNED",
-            company: null,
-            container: null,
-            direction: null,
-            assigned_to_technician: (row.technician_email as string) || null,
-            job_card_id: null,
-            notes: null,
-            technician_email: (row.technician_email as string) || "",
-            technician_name: (row.name as string) || "",
-            code: (part.code as string) || "",
-            description: (part.description as string) || "",
-          });
+          const sn = String(part.serial_number).trim();
+          if (sn && serialSet.has(sn)) {
+            techBySerial.set(sn, {
+              id: row.id as number,
+              serial_number: sn,
+              category_code: (part.code as string) || "",
+              status: "ASSIGNED",
+              company: null,
+              container: null,
+              direction: null,
+              assigned_to_technician: (row.technician_email as string) || null,
+              job_card_id: null,
+              notes: null,
+              technician_email: (row.technician_email as string) || "",
+              technician_name: (row.name as string) || "",
+              code: (part.code as string) || "",
+              description: (part.description as string) || "",
+            });
+          }
         }
       }
     }
-
-    const vehicles = await fetchAllRows(
-      serviceSupabase,
-      "vehicles_duplicate",
-      "*"
-    );
-
-    const soltrackBySerial = new Map<string, StockItem>();
-    for (const item of soltrackItems) {
-      const sn = normalizeForMatch(item.serial_number);
-      if (sn) soltrackBySerial.set(sn, item as unknown as StockItem);
-    }
-
-    const clientBySerial = new Map<string, StockItem>();
-    for (const item of clientItems) {
-      const sn = normalizeForMatch(item.serial_number);
-      if (sn) clientBySerial.set(sn, item as unknown as StockItem);
-    }
-
-    const techBySerial = new Map<string, StockItem>();
-    for (const item of techItems) {
-      const sn = normalizeForMatch(item.serial_number);
-      if (sn) techBySerial.set(sn, item);
-    }
-
-    console.log(`[Stock Verification] Fetched: soltrack=${soltrackItems.length} (map=${soltrackBySerial.size}), client=${clientItems.length} (map=${clientBySerial.size}), tech=${techItems.length} (map=${techBySerial.size}), vehicles=${vehicles.length}`);
 
     const vehicleMatches: VehicleMatch[] = [];
 
@@ -217,22 +206,21 @@ export async function GET(request: NextRequest) {
         const rawVal = v[col];
         if (!rawVal) continue;
 
-        const isIP = IP_COLUMN_SET.has(col);
-        const normalized = isIP ? normalizeIP(rawVal) : normalizeForMatch(rawVal);
-        if (!normalized) continue;
+        const serialVal = String(rawVal).trim();
+        if (!serialVal) continue;
 
         let match: StockItem | undefined;
         let bucket: "soltrack" | "client" | "technician" = "soltrack";
 
-        match = soltrackBySerial.get(normalized);
+        match = soltrackBySerial.get(serialVal);
         if (match) {
           bucket = "soltrack";
         } else {
-          match = clientBySerial.get(normalized);
+          match = clientBySerial.get(serialVal);
           if (match) {
             bucket = "client";
           } else {
-            match = techBySerial.get(normalized);
+            match = techBySerial.get(serialVal);
             if (match) {
               bucket = "technician";
             }
@@ -249,8 +237,7 @@ export async function GET(request: NextRequest) {
             vehicle_account: vehicleAccount,
             vehicle_company: vehicleCompany,
             column_name: col,
-            serial_number: String(rawVal),
-            normalized_value: normalized,
+            serial_number: serialVal,
             bucket,
             stock_item: match,
           });
@@ -288,7 +275,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       soltrackCount: soltrackItems.length,
       clientCount: clientItems.length,
-      techCount: techItems.length,
+      techCount: techBySerial.size,
       vehicleMatchCount: filteredMatches.length,
       bucketBreakdown,
       vehicleMatches: filteredMatches,
@@ -316,39 +303,33 @@ export async function DELETE(request: NextRequest) {
     );
 
     const body = await request.json();
-    const { bucket, stock_id, serial_number, technician_email } = body;
+    const { bucket, serial_number, technician_email } = body;
 
     if (!bucket || !serial_number) {
       return NextResponse.json({ error: "bucket and serial_number required" }, { status: 400 });
     }
 
     if (bucket === "soltrack") {
-      if (!stock_id) {
-        return NextResponse.json({ error: "stock_id required for soltrack" }, { status: 400 });
-      }
       const { error } = await serviceSupabase
         .from("inventory_items")
         .delete()
-        .eq("id", stock_id);
+        .eq("serial_number", serial_number);
       if (error) throw error;
       return NextResponse.json({ success: true, message: "Deleted from Soltrack stock" });
     }
 
     if (bucket === "client") {
-      if (!stock_id) {
-        return NextResponse.json({ error: "stock_id required for client" }, { status: 400 });
-      }
       const { error } = await serviceSupabase
         .from("client_inventory_items")
         .delete()
-        .eq("id", stock_id);
+        .eq("serial_number", serial_number);
       if (error) throw error;
       return NextResponse.json({ success: true, message: "Deleted from Client stock" });
     }
 
     if (bucket === "technician") {
-      if (!technician_email || !serial_number) {
-        return NextResponse.json({ error: "technician_email and serial_number required" }, { status: 400 });
+      if (!technician_email) {
+        return NextResponse.json({ error: "technician_email required" }, { status: 400 });
       }
       const { data: techRow, error: fetchError } = await serviceSupabase
         .from("tech_stock")
@@ -360,11 +341,9 @@ export async function DELETE(request: NextRequest) {
       }
 
       const parts = Array.isArray(techRow.assigned_parts) ? techRow.assigned_parts : [];
-      const normalizedTarget = normalizeForMatch(serial_number);
-      const filteredParts = parts.filter((p: Record<string, unknown>) => {
-        const pSn = normalizeForMatch(p.serial_number);
-        return pSn !== normalizedTarget;
-      });
+      const filteredParts = parts.filter((p: Record<string, unknown>) =>
+        String(p.serial_number || "").trim() !== serial_number
+      );
 
       if (filteredParts.length === parts.length) {
         return NextResponse.json({ error: "Item not found in technician stock" }, { status: 404 });
@@ -380,7 +359,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ error: "Invalid bucket" }, { status: 400 });
   } catch (error) {
-    console.error("Error in stock verification DELETE:", error);
+    console.error("Error in stock verify DELETE:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

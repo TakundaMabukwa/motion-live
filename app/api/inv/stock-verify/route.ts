@@ -2,33 +2,67 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 
-const normalizeForMatch = (val: unknown) =>
-  String(val || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s\-_]/g, "");
+const BATCH = 1000;
 
-const normalizeIP = (val: unknown) => {
-  let raw = String(val || "").trim().toLowerCase();
-  if (!raw) return "";
-  raw = raw.replace(/[\s\-_]/g, "");
-  const colonIdx = raw.indexOf(":");
-  if (colonIdx > 0) raw = raw.substring(0, colonIdx);
-  const slashIdx = raw.indexOf("/");
-  if (slashIdx > 0) raw = raw.substring(0, slashIdx);
-  return raw;
-};
+const SERIAL_NUMBER_COLUMNS = [
+  "skylink_trailer_unit_serial_number",
+  "sky_on_batt_ign_unit_serial_number",
+  "skylink_voice_kit_serial_number",
+  "sky_scout_12v_serial_number",
+  "sky_scout_24v_serial_number",
+  "skylink_pro_serial_number",
+  "skylink_sim_card_no",
+  "skylink_data_number",
+  "sim_card_number",
+  "data_number",
+  "corpconnect_sim_no",
+  "corpconnect_data_no",
+  "pfk_corpconnect_sim_number",
+  "pfk_corpconnect_data_number",
+];
+
+const IP_COLUMNS = [
+  "skylink_trailer_unit_ip",
+  "sky_on_batt_ign_unit_ip",
+  "skylink_voice_kit_ip",
+  "sky_scout_12v_ip",
+  "sky_scout_24v_ip",
+  "skylink_pro_ip",
+  "vw100ip_driver_facing_ip",
+];
+
+const ALL_COLUMNS_TO_CHECK = [...SERIAL_NUMBER_COLUMNS, ...IP_COLUMNS];
+
+async function fetchAllRows(
+  client: ReturnType<typeof createServiceClient>,
+  table: string,
+  columns: string,
+  filters?: { column: string; operator: string; value: unknown }[]
+) {
+  let query = client.from(table).select(columns);
+  if (filters) {
+    for (const f of filters) {
+      if (f.operator === "not.is") query = query.not(f.column, "is", f.value);
+    }
+  }
+  let from = 0;
+  const allRows: Record<string, unknown>[] = [];
+  while (true) {
+    const { data: batch, error } = await query.range(from, from + BATCH - 1);
+    if (error) break;
+    const rows = (batch || []) as Record<string, unknown>[];
+    allRows.push(...rows);
+    if (rows.length < BATCH) break;
+    from += BATCH;
+  }
+  return allRows;
+}
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const serviceSupabase = createServiceClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,61 +70,45 @@ export async function GET(request: NextRequest) {
     );
 
     const { searchParams } = new URL(request.url);
-    const bucket = String(searchParams.get("bucket") || "").trim();
     const serialNumber = String(searchParams.get("serial_number") || "").trim();
-    const technicianEmail = String(searchParams.get("technician_email") || "").trim();
+    const bucket = String(searchParams.get("bucket") || "").trim();
 
-    if (!bucket || !serialNumber) {
-      return NextResponse.json({ error: "bucket and serial_number required" }, { status: 400 });
+    if (!serialNumber || !bucket) {
+      return NextResponse.json({ error: "serial_number and bucket required" }, { status: 400 });
     }
 
-    const normalized = normalizeForMatch(serialNumber);
-
     if (bucket === "soltrack") {
-      const { data: items, error } = await serviceSupabase
+      const { data: item, error } = await serviceSupabase
         .from("inventory_items")
         .select("id, category_code, serial_number, status, company, container, direction, assigned_to_technician, job_card_id, notes")
-        .range(0, 9999);
-      if (error) throw error;
-
-      const match = (items || []).find((item) => normalizeForMatch(item.serial_number) === normalized);
-      if (match) {
-        return NextResponse.json({ found: true, item: match });
-      }
-      return NextResponse.json({ found: false, item: null });
+        .eq("serial_number", serialNumber)
+        .single();
+      if (error || !item) return NextResponse.json({ found: false, item: null });
+      return NextResponse.json({ found: true, item });
     }
 
     if (bucket === "client") {
-      const { data: items, error } = await serviceSupabase
+      const { data: item, error } = await serviceSupabase
         .from("client_inventory_items")
         .select("id, client_code, cost_code, category_code, serial_number, status, company, container, direction, assigned_to_technician, job_card_id, notes")
-        .range(0, 9999);
-      if (error) throw error;
-
-      const match = (items || []).find((item) => normalizeForMatch(item.serial_number) === normalized);
-      if (match) {
-        return NextResponse.json({ found: true, item: match });
-      }
-      return NextResponse.json({ found: false, item: null });
+        .eq("serial_number", serialNumber)
+        .single();
+      if (error || !item) return NextResponse.json({ found: false, item: null });
+      return NextResponse.json({ found: true, item });
     }
 
     if (bucket === "technician") {
-      const query = serviceSupabase
+      const { data: techRows, error } = await serviceSupabase
         .from("tech_stock")
         .select("id, technician_email, name, assigned_parts")
-        .not("assigned_parts", "is", null);
-
-      if (technicianEmail) {
-        query.eq("technician_email", technicianEmail);
-      }
-
-      const { data: techRows, error } = await query.range(0, 9999);
+        .not("assigned_parts", "is", null)
+        .range(0, 9999);
       if (error) throw error;
 
       for (const row of techRows || []) {
         const parts = Array.isArray(row.assigned_parts) ? row.assigned_parts : [];
         for (const part of parts) {
-          if (part && normalizeForMatch(part.serial_number) === normalized) {
+          if (part && String(part.serial_number || "").trim() === serialNumber) {
             return NextResponse.json({
               found: true,
               item: {
@@ -113,7 +131,6 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-
       return NextResponse.json({ found: false, item: null });
     }
 
@@ -127,13 +144,8 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const serviceSupabase = createServiceClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -141,39 +153,33 @@ export async function DELETE(request: NextRequest) {
     );
 
     const body = await request.json();
-    const { bucket, stock_id, serial_number, technician_email } = body;
+    const { bucket, serial_number, stock_id, technician_email } = body;
 
     if (!bucket || !serial_number) {
       return NextResponse.json({ error: "bucket and serial_number required" }, { status: 400 });
     }
 
     if (bucket === "soltrack") {
-      if (!stock_id) {
-        return NextResponse.json({ error: "stock_id required for soltrack" }, { status: 400 });
-      }
       const { error } = await serviceSupabase
         .from("inventory_items")
         .delete()
-        .eq("id", stock_id);
+        .eq("serial_number", serial_number);
       if (error) throw error;
       return NextResponse.json({ success: true, message: "Deleted from Soltrack stock" });
     }
 
     if (bucket === "client") {
-      if (!stock_id) {
-        return NextResponse.json({ error: "stock_id required for client" }, { status: 400 });
-      }
       const { error } = await serviceSupabase
         .from("client_inventory_items")
         .delete()
-        .eq("id", stock_id);
+        .eq("serial_number", serial_number);
       if (error) throw error;
       return NextResponse.json({ success: true, message: "Deleted from Client stock" });
     }
 
     if (bucket === "technician") {
-      if (!technician_email || !serial_number) {
-        return NextResponse.json({ error: "technician_email and serial_number required" }, { status: 400 });
+      if (!technician_email) {
+        return NextResponse.json({ error: "technician_email required" }, { status: 400 });
       }
       const { data: techRow, error: fetchError } = await serviceSupabase
         .from("tech_stock")
@@ -185,11 +191,9 @@ export async function DELETE(request: NextRequest) {
       }
 
       const parts = Array.isArray(techRow.assigned_parts) ? techRow.assigned_parts : [];
-      const normalizedTarget = normalizeForMatch(serial_number);
-      const filteredParts = parts.filter((p: Record<string, unknown>) => {
-        const pSn = normalizeForMatch(p.serial_number);
-        return pSn !== normalizedTarget;
-      });
+      const filteredParts = parts.filter((p: Record<string, unknown>) =>
+        String(p.serial_number || "").trim() !== serial_number
+      );
 
       if (filteredParts.length === parts.length) {
         return NextResponse.json({ error: "Item not found in technician stock" }, { status: 404 });
