@@ -95,42 +95,53 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = Array.isArray(data) ? data : [];
-    const assignedParts = rows.flatMap((row) => {
+    const expandedItems = rows.flatMap((row) => {
       const parts = Array.isArray(row?.assigned_parts)
-        ? row.assigned_parts.map((part) => normalizeAssignedPart(part))
+        ? row.assigned_parts
         : [];
-      return parts;
-    });
 
-    // Do not group quantities in the UI: expand each item into single-unit rows.
-    // This keeps selection accurate and avoids "one checkbox selects many".
-    const expandedItems = assignedParts.flatMap((item, index) => {
-      const base = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-      const quantity = normalizeQuantity(base.quantity ?? base.count ?? 1) || 1;
-      const serial = String(base.serial_number || base.serial || base.serialNumber || base.ip_address || "").trim();
-      const stockId = String(base.stock_id || base.id || "").trim();
-      const itemId = serial || stockId || `item-${index}`;
+      const expanded: Record<string, unknown>[] = [];
+      let globalIndex = 0;
 
-      // If quantity is 1 (or invalid), keep as-is.
-      if (quantity <= 1) {
-        return [
-          {
-            ...base,
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const base = part && typeof part === "object" ? { ...(part as Record<string, unknown>) } : {};
+        const serialNumber = String(
+          base.serial_number ?? base.serial ?? base.serialNumber ?? base.ip_address ?? "",
+        ).trim();
+        const quantity = normalizeQuantity(base.quantity ?? base.count ?? 1) || 1;
+
+        const normalized = {
+          ...base,
+          description: String(base.description ?? base.name ?? base.code ?? "Item"),
+          code: String(base.code ?? base.category_code ?? ""),
+          quantity,
+          serial_number: serialNumber,
+          ip_address: String(base.ip_address ?? "").trim(),
+        };
+
+        if (quantity <= 1) {
+          expanded.push({
+            ...normalized,
             quantity: 1,
             available_stock: normalizeQuantity(base.available_stock ?? 1) || 1,
-            id: itemId,
-          },
-        ];
+          });
+          globalIndex++;
+        } else {
+          for (let unitIndex = 0; unitIndex < quantity; unitIndex++) {
+            expanded.push({
+              ...normalized,
+              quantity: 1,
+              available_stock: 1,
+              unit_index: unitIndex + 1,
+              unit_total: quantity,
+            });
+            globalIndex++;
+          }
+        }
       }
 
-      return Array.from({ length: quantity }, (_, unitIndex) => ({
-        ...base,
-        quantity: 1,
-        available_stock: 1,
-        unit_index: unitIndex + 1,
-        unit_total: quantity,
-        id: `${itemId}-unit-${unitIndex + 1}`,
-      }));
+      return expanded;
     });
 
     return NextResponse.json({

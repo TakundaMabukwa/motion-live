@@ -223,12 +223,10 @@ export default function TechnicianStockDetailsPage() {
           target_is_soltrack: targetIsSoltrack,
           target_tech_stock_id: targetIsSoltrack ? null : targetTechStockId,
           item: {
-            row_id: selectedTransferItem.row_id,
             serial_number: selectedTransferItem.serial_number,
-            stock_id: selectedTransferItem.stock_id ?? selectedTransferItem.id,
             code: selectedTransferItem.code,
             description: selectedTransferItem.description,
-            supplier: selectedTransferItem.supplier,
+            stock_id: selectedTransferItem.stock_id ?? selectedTransferItem.id,
           },
         }),
       });
