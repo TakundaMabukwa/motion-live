@@ -17,12 +17,9 @@ const SERIAL_NUMBER_COLUMNS = [
   "data_number",
   "corpconnect_sim_no",
   "corpconnect_data_no",
+  "sim_id",
   "pfk_corpconnect_sim_number",
   "pfk_corpconnect_data_number",
-  "mtx_corpconnect_sim_number",
-  "mtx_corpconnect_data_number",
-  "sim_id",
-  "mtx_sim_id",
 ];
 
 const IP_COLUMNS = [
