@@ -236,11 +236,6 @@ export default function TechnicianStockDetailsPage() {
         throw new Error(payload?.error || 'Failed to transfer stock');
       }
 
-      const destinationEmail = String(
-        payload?.target_technician_email || targetTechnicianEmail || '',
-      )
-        .trim()
-        .toLowerCase();
       const movedSerial = String(
         payload?.serial_number || selectedTransferItem?.serial_number || '',
       ).trim();
@@ -258,21 +253,8 @@ export default function TechnicianStockDetailsPage() {
       setTargetTechnicianEmail('');
       setTargetTechStockId(null);
       setTargetIsSoltrack(false);
+      await fetchItems();
       await fetchTechnicians();
-
-      if (
-        !isSoltrackReturn &&
-        destinationEmail &&
-        destinationEmail !== String(technicianEmail || '').trim().toLowerCase()
-      ) {
-        const targetPath = `/protected/inv/technician-stock/${encodeURIComponent(destinationEmail)}`;
-        const query = movedSerial
-          ? `?moved=${encodeURIComponent(movedSerial)}`
-          : '';
-        router.push(`${targetPath}${query}`);
-      } else {
-        fetchItems();
-      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Failed to transfer stock',
