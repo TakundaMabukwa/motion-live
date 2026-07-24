@@ -109,10 +109,7 @@ export default function StockVerification() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-
-      const res = await fetch(`/api/inv/stock-verification?${params.toString()}`, { cache: "no-store" });
+      const res = await fetch(`/api/inv/stock-verification`, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch stock verification data");
       const result = await res.json();
       setData(result);
@@ -123,15 +120,11 @@ export default function StockVerification() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [search]);
+  }, []);
 
   useEffect(() => {
     fetchData();
   }, []);
-
-  const handleSearch = useCallback(() => {
-    fetchData();
-  }, [fetchData]);
 
   const toggleRow = useCallback((idx: number) => {
     setExpandedRows((prev) => {
@@ -262,11 +255,34 @@ export default function StockVerification() {
       .map(([label, count]) => ({ label, count }));
   }, [data]);
 
-  const columnFilteredMatches = useMemo(() => {
+  const searchFilteredMatches = useMemo(() => {
     if (!data) return [];
-    if (columnFilter === "all") return data.vehicleMatches;
-    return data.vehicleMatches.filter((m) => formatColumnLabel(m.column_name) === columnFilter);
-  }, [data, columnFilter]);
+    if (!search) return data.vehicleMatches;
+    const q = search.toLowerCase();
+    return data.vehicleMatches.filter((m) => {
+      const haystack = [
+        m.vehicle_reg,
+        m.vehicle_fleet,
+        m.vehicle_make,
+        m.vehicle_model,
+        m.vehicle_account,
+        m.vehicle_company,
+        m.serial_number,
+        m.column_name,
+        m.stock_item.category_code,
+        m.stock_item.description || "",
+        m.stock_item.code || "",
+        m.stock_item.client_code || "",
+        m.stock_item.technician_email || "",
+      ].join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [data, search]);
+
+  const columnFilteredMatches = useMemo(() => {
+    if (columnFilter === "all") return searchFilteredMatches;
+    return searchFilteredMatches.filter((m) => formatColumnLabel(m.column_name) === columnFilter);
+  }, [searchFilteredMatches, columnFilter]);
 
   const filteredBucketBreakdown = useMemo(() => ({
     soltrack: columnFilteredMatches.filter((m) => m.bucket === "soltrack").length,
@@ -326,7 +342,7 @@ export default function StockVerification() {
               placeholder="Search vehicles, serials..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
               className="h-10 w-full rounded-md border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
             />
           </div>
@@ -340,9 +356,6 @@ export default function StockVerification() {
               <option key={c.label} value={c.label}>{c.label} ({c.count})</option>
             ))}
           </select>
-          <Button variant="outline" onClick={handleSearch} className="h-10 shrink-0">
-            <Search className="mr-1 h-4 w-4" /> Search
-          </Button>
           <Button variant="outline" onClick={() => fetchData(true)} disabled={refreshing} className="h-10 shrink-0">
             <RefreshCw className={`mr-1 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </Button>
