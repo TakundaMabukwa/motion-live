@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { appendAssignedPartsToTechnicianStock } from '@/lib/server/tech-stock-assignment';
 import {
   buildTransferPart,
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const sourceTechnicianEmail = normalizeEmail(body.source_technician_email);
     const targetTechnicianEmail = normalizeEmail(body.target_technician_email);
+    const targetIsSoltrack = body.target_is_soltrack === true;
     const targetTechStockId =
       Number(body.target_tech_stock_id ?? body.targetTechStockId ?? 0) || null;
 
@@ -43,24 +45,38 @@ export async function POST(request: NextRequest) {
       : ({} as Record<string, unknown>);
     const transferRowId = String(transferItem.row_id || '').trim();
 
-    if (!sourceTechnicianEmail || !targetTechnicianEmail) {
+    if (!sourceTechnicianEmail) {
       return NextResponse.json(
-        { error: 'Source and target technician emails are required' },
+        { error: 'Source technician email is required' },
+        { status: 400 },
+      );
+    }
+
+    if (!isValidTechnicianEmail(sourceTechnicianEmail)) {
+      return NextResponse.json(
+        { error: 'Source must be a valid technician email address' },
+        { status: 400 },
+      );
+    }
+
+    if (!targetIsSoltrack && !targetTechnicianEmail) {
+      return NextResponse.json(
+        { error: 'Select a destination: technician or Soltrack Stock' },
         { status: 400 },
       );
     }
 
     if (
-      !isValidTechnicianEmail(sourceTechnicianEmail) ||
+      !targetIsSoltrack &&
       !isValidTechnicianEmail(targetTechnicianEmail)
     ) {
       return NextResponse.json(
-        { error: 'Source and target must be valid technician email addresses' },
+        { error: 'Target must be a valid technician email address' },
         { status: 400 },
       );
     }
 
-    if (sourceTechnicianEmail === targetTechnicianEmail) {
+    if (!targetIsSoltrack && sourceTechnicianEmail === targetTechnicianEmail) {
       return NextResponse.json(
         { error: 'Source and target technicians must be different' },
         { status: 400 },
@@ -167,6 +183,96 @@ export async function POST(request: NextRequest) {
 
     const partToTransfer = buildTransferPart(storedRecord);
 
+    // ── Soltrack Stock: insert into inventory_items ──────────────────────
+    if (targetIsSoltrack) {
+      const serviceSupabase = createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      );
+
+      const { error: sourceUpdateError } = await supabase
+        .from('tech_stock')
+        .update({ assigned_parts: updatedSourceParts })
+        .eq('id', sourceRow.id);
+
+      if (sourceUpdateError) {
+        return NextResponse.json(
+          { error: sourceUpdateError.message },
+          { status: 500 },
+        );
+      }
+
+      const categoryCode = String(
+        partToTransfer.code || storedRecord.code || '',
+      ).trim();
+      const serialNumber = resolvePartSerial(partToTransfer);
+      const description = String(
+        partToTransfer.description || storedRecord.description || '',
+      ).trim();
+
+      if (!categoryCode || !serialNumber) {
+        // Rollback source
+        await supabase
+          .from('tech_stock')
+          .update({ assigned_parts: originalAssignedParts })
+          .eq('id', sourceRow.id);
+
+        return NextResponse.json(
+          {
+            error: `Cannot return to Soltrack: missing category code (${categoryCode || 'empty'}) or serial (${serialNumber || 'empty'}).`,
+          },
+          { status: 409 },
+        );
+      }
+
+      const { error: insertError } = await serviceSupabase
+        .from('inventory_items')
+        .insert({
+          category_code: categoryCode,
+          serial_number: serialNumber,
+          status: 'IN STOCK',
+          direction: 'IN',
+          container: 'TECH_RETURN',
+          company: null,
+          notes: `Returned from technician ${sourceTechnicianEmail}${description ? ` — ${description}` : ''}`,
+          assigned_to_technician: null,
+          assigned_date: null,
+          job_card_id: null,
+          date_adjusted: null,
+        });
+
+      if (insertError) {
+        // Rollback source
+        const { error: rollbackError } = await supabase
+          .from('tech_stock')
+          .update({ assigned_parts: originalAssignedParts })
+          .eq('id', sourceRow.id);
+
+        if (rollbackError) {
+          console.error(
+            'Failed to rollback source stock after Soltrack insert failure:',
+            rollbackError,
+          );
+        }
+
+        return NextResponse.json(
+          {
+            error: `Failed to add to Soltrack inventory: ${insertError.message}. Source stock was restored.`,
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        source_technician_email: sourceTechnicianEmail,
+        target: 'soltrack',
+        serial_number: serialNumber,
+        stock_id: partToTransfer.stock_id || null,
+      });
+    }
+
+    // ── Technician-to-Technician transfer ────────────────────────────────
     if (targetTechStockId) {
       const { data: targetRow, error: targetLookupError } = await supabase
         .from('tech_stock')
