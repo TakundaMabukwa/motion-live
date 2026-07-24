@@ -65,6 +65,7 @@ export default function TechnicianStockDetailsPage() {
     useState<TechnicianStockItem | null>(null);
   const [targetTechnicianEmail, setTargetTechnicianEmail] = useState('');
   const [targetTechStockId, setTargetTechStockId] = useState<number | null>(null);
+  const [targetIsSoltrack, setTargetIsSoltrack] = useState(false);
   const [transferring, setTransferring] = useState(false);
 
   const fetchItems = async () => {
@@ -191,6 +192,7 @@ export default function TechnicianStockDetailsPage() {
     setSelectedTransferItem(item);
     setTargetTechnicianEmail('');
     setTargetTechStockId(null);
+    setTargetIsSoltrack(false);
     setShowTransferDialog(true);
   };
 
@@ -200,8 +202,8 @@ export default function TechnicianStockDetailsPage() {
       return;
     }
 
-    if (!targetTechnicianEmail) {
-      toast.error('Select a technician to receive stock');
+    if (!targetTechnicianEmail && !targetIsSoltrack) {
+      toast.error('Select a destination: technician or Soltrack Stock');
       return;
     }
 
@@ -217,15 +219,14 @@ export default function TechnicianStockDetailsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source_technician_email: technicianEmail,
-          target_technician_email: targetTechnicianEmail,
-          target_tech_stock_id: targetTechStockId,
+          target_technician_email: targetIsSoltrack ? '' : targetTechnicianEmail,
+          target_is_soltrack: targetIsSoltrack,
+          target_tech_stock_id: targetIsSoltrack ? null : targetTechStockId,
           item: {
-            row_id: selectedTransferItem.row_id,
             serial_number: selectedTransferItem.serial_number,
-            stock_id: selectedTransferItem.stock_id ?? selectedTransferItem.id,
             code: selectedTransferItem.code,
             description: selectedTransferItem.description,
-            supplier: selectedTransferItem.supplier,
+            stock_id: selectedTransferItem.stock_id ?? selectedTransferItem.id,
           },
         }),
       });
@@ -235,38 +236,25 @@ export default function TechnicianStockDetailsPage() {
         throw new Error(payload?.error || 'Failed to transfer stock');
       }
 
-      const destinationEmail = String(
-        payload?.target_technician_email || targetTechnicianEmail || '',
-      )
-        .trim()
-        .toLowerCase();
       const movedSerial = String(
         payload?.serial_number || selectedTransferItem?.serial_number || '',
       ).trim();
+      const isSoltrackReturn = payload?.target === 'soltrack' || targetIsSoltrack;
 
       toast.success(
         movedSerial
-          ? `Transferred serial ${movedSerial} successfully`
+          ? isSoltrackReturn
+            ? `Returned serial ${movedSerial} to Soltrack Stock`
+            : `Transferred serial ${movedSerial} successfully`
           : 'Stock transferred successfully',
       );
       setShowTransferDialog(false);
       setSelectedTransferItem(null);
       setTargetTechnicianEmail('');
       setTargetTechStockId(null);
+      setTargetIsSoltrack(false);
+      await fetchItems();
       await fetchTechnicians();
-
-      if (
-        destinationEmail &&
-        destinationEmail !== String(technicianEmail || '').trim().toLowerCase()
-      ) {
-        const targetPath = `/protected/inv/technician-stock/${encodeURIComponent(destinationEmail)}`;
-        const query = movedSerial
-          ? `?moved=${encodeURIComponent(movedSerial)}`
-          : '';
-        router.push(`${targetPath}${query}`);
-      } else {
-        fetchItems();
-      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Failed to transfer stock',
@@ -394,7 +382,9 @@ export default function TechnicianStockDetailsPage() {
       <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Transfer Technician Stock</DialogTitle>
+            <DialogTitle>
+              {targetIsSoltrack ? 'Return to Soltrack Stock' : 'Transfer Technician Stock'}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -417,40 +407,52 @@ export default function TechnicianStockDetailsPage() {
 
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
-                Send To Technician
+                Send To
               </label>
               <select
-                value={targetTechnicianEmail}
+                value={targetIsSoltrack ? '__soltrack__' : targetTechnicianEmail}
                 onChange={(event) => {
-                  const email = event.target.value;
-                  setTargetTechnicianEmail(email);
-                  const match = transferTargets.find(
-                    (tech) =>
-                      String(tech.technician_email || '').trim().toLowerCase() ===
-                      email.trim().toLowerCase(),
-                  );
-                  const stockId = Number(match?.id);
-                  setTargetTechStockId(
-                    Number.isFinite(stockId) && stockId > 0 ? stockId : null,
-                  );
+                  const value = event.target.value;
+                  if (value === '__soltrack__') {
+                    setTargetIsSoltrack(true);
+                    setTargetTechnicianEmail('');
+                    setTargetTechStockId(null);
+                  } else {
+                    setTargetIsSoltrack(false);
+                    setTargetTechnicianEmail(value);
+                    const match = transferTargets.find(
+                      (tech) =>
+                        String(tech.technician_email || '').trim().toLowerCase() ===
+                        value.trim().toLowerCase(),
+                    );
+                    const stockId = Number(match?.id);
+                    setTargetTechStockId(
+                      Number.isFinite(stockId) && stockId > 0 ? stockId : null,
+                    );
+                  }
                 }}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
                 disabled={loadingTechnicians || transferring}
               >
-                <option value="">Select technician</option>
-                {transferTargets.map((tech) => {
-                  const email = String(tech.technician_email || '').trim().toLowerCase();
-                  if (!email) return null;
-                  return (
-                    <option key={email} value={email}>
-                      {tech.display_name ? `${tech.display_name} (${email})` : email}
-                    </option>
-                  );
-                })}
+                <option value="">Select destination</option>
+                <option value="__soltrack__">Soltrack Stock (Return to Inventory)</option>
+                {transferTargets.length > 0 && (
+                  <optgroup label="Technicians">
+                    {transferTargets.map((tech) => {
+                      const email = String(tech.technician_email || '').trim().toLowerCase();
+                      if (!email) return null;
+                      return (
+                        <option key={email} value={email}>
+                          {tech.display_name ? `${tech.display_name} (${email})` : email}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
               </select>
-              {!hasTransferTargets ? (
+              {!hasTransferTargets && !targetIsSoltrack ? (
                 <p className="mt-1 text-xs text-amber-600">
-                  No other technicians available for transfer.
+                  No other technicians available. You can return stock to Soltrack.
                 </p>
               ) : null}
             </div>
@@ -464,7 +466,11 @@ export default function TechnicianStockDetailsPage() {
                 Cancel
               </Button>
               <Button onClick={handleTransferItem} disabled={transferring}>
-                {transferring ? 'Transferring...' : 'Transfer Stock'}
+                {transferring
+                  ? 'Transferring...'
+                  : targetIsSoltrack
+                    ? 'Return to Soltrack'
+                    : 'Transfer Stock'}
               </Button>
             </div>
           </div>
