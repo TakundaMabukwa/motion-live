@@ -85,6 +85,7 @@ export default function StockVerification() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [bucketFilter, setBucketFilter] = useState<string>("all");
+  const [columnFilter, setColumnFilter] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   const [verifyModal, setVerifyModal] = useState<{
@@ -249,11 +250,38 @@ export default function StockVerification() {
     }
   }, [verifyModal.match, verifyModal.verifiedItem, closeVerifyModal, fetchData]);
 
-  const filteredMatches = useMemo(() => {
+  const uniqueColumns = useMemo(() => {
     if (!data) return [];
-    if (bucketFilter === "all") return data.vehicleMatches;
-    return data.vehicleMatches.filter((m) => m.bucket === bucketFilter);
-  }, [data, bucketFilter]);
+    const cols = new Map<string, number>();
+    for (const m of data.vehicleMatches) {
+      const label = formatColumnLabel(m.column_name);
+      cols.set(label, (cols.get(label) || 0) + 1);
+    }
+    return Array.from(cols.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, count]) => ({ label, count }));
+  }, [data]);
+
+  const columnFilteredMatches = useMemo(() => {
+    if (!data) return [];
+    if (columnFilter === "all") return data.vehicleMatches;
+    return data.vehicleMatches.filter((m) => formatColumnLabel(m.column_name) === columnFilter);
+  }, [data, columnFilter]);
+
+  const filteredBucketBreakdown = useMemo(() => ({
+    soltrack: columnFilteredMatches.filter((m) => m.bucket === "soltrack").length,
+    client: columnFilteredMatches.filter((m) => m.bucket === "client").length,
+    technician: columnFilteredMatches.filter((m) => m.bucket === "technician").length,
+  }), [columnFilteredMatches]);
+
+  const BUCKET_ORDER: Record<string, number> = { soltrack: 0, technician: 1, client: 2 };
+
+  const filteredMatches = useMemo(() => {
+    const base = bucketFilter === "all"
+      ? columnFilteredMatches
+      : columnFilteredMatches.filter((m) => m.bucket === bucketFilter);
+    return [...base].sort((a, b) => (BUCKET_ORDER[a.bucket] ?? 3) - (BUCKET_ORDER[b.bucket] ?? 3));
+  }, [columnFilteredMatches, bucketFilter]);
 
   const stats = useMemo(() => {
     if (!data) return null;
@@ -302,6 +330,16 @@ export default function StockVerification() {
               className="h-10 w-full rounded-md border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
             />
           </div>
+          <select
+            value={columnFilter}
+            onChange={(e) => setColumnFilter(e.target.value)}
+            className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+          >
+            <option value="all">All Columns ({data?.vehicleMatchCount || 0})</option>
+            {uniqueColumns.map((c) => (
+              <option key={c.label} value={c.label}>{c.label} ({c.count})</option>
+            ))}
+          </select>
           <Button variant="outline" onClick={handleSearch} className="h-10 shrink-0">
             <Search className="mr-1 h-4 w-4" /> Search
           </Button>
@@ -313,10 +351,10 @@ export default function StockVerification() {
 
       <div className="flex items-center gap-1 border-b border-slate-200">
         {[
-          { id: "all", label: "All Matches" },
-          { id: "soltrack", label: `Soltrack (${data?.bucketBreakdown.soltrack || 0})` },
-          { id: "client", label: `Client (${data?.bucketBreakdown.client || 0})` },
-          { id: "technician", label: `Technician (${data?.bucketBreakdown.technician || 0})` },
+          { id: "all", label: `All Matches (${columnFilteredMatches.length})` },
+          { id: "soltrack", label: `Soltrack (${filteredBucketBreakdown.soltrack})` },
+          { id: "client", label: `Client (${filteredBucketBreakdown.client})` },
+          { id: "technician", label: `Technician (${filteredBucketBreakdown.technician})` },
         ].map((tab) => (
           <button
             key={tab.id}
