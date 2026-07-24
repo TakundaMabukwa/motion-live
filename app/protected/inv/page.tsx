@@ -217,6 +217,7 @@ import StockOrderModal from "@/components/accounts/StockOrderModal";
 import AssignIPAddressModal from "@/components/inv/components/AssignIPAddressModal";
 import CreateRepairJobModal from "@/components/inv/CreateRepairJobModal";
 import AssignTechStockModal from "@/components/inv/components/AssignTechStockModal";
+import StockVerification from "@/components/inv/components/StockVerification";
 import { toast } from "sonner";
 
 const normalizeCategoryCode = (value: unknown) =>
@@ -4810,6 +4811,12 @@ export default function InventoryPage() {
       label: "Technician Stock",
       icon: User,
       content: technicianStockContent,
+    },
+    {
+      value: "stock-verification",
+      label: "Stock Verification",
+      icon: ClipboardList,
+      content: <StockVerification />,
     },
   ];
 
